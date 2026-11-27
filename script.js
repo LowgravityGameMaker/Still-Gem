@@ -1,5 +1,6 @@
 const ROWS = 8;
 const COLS = 8;
+const TOTAL_CELLS = ROWS * COLS;
 const GEM_TYPES = 6;
 const BEST_SCORE_KEY = 'still_gem_timed_best';
 const TIMED_LIMIT = 60;
@@ -19,8 +20,8 @@ const finalBestEl = document.getElementById('final-best');
 const overlayRestartBtn = document.getElementById('overlay-restart-btn');
 
 let currentMode = 'zen';
-let grid = [];
-let dropOffsets = [];
+let grid = new Array(TOTAL_CELLS).fill(null);
+let dropOffsets = new Array(TOTAL_CELLS).fill(0);
 let selectedCell = null;
 let score = 0;
 let bestScore = Number(localStorage.getItem(BEST_SCORE_KEY)) || 0;
@@ -32,6 +33,27 @@ let touchStartX = 0;
 let touchStartY = 0;
 let touchStartCell = null;
 let svgUid = 0;
+
+function toIdx(r, c) {
+  return r * COLS + c;
+}
+
+function getGem(r, c) {
+  if (r < 0 || r >= ROWS || c < 0 || c >= COLS) return null;
+  return grid.at(toIdx(r, c));
+}
+
+function setGem(r, c, val) {
+  grid.splice(toIdx(r, c), 1, val);
+}
+
+function getDrop(r, c) {
+  return dropOffsets.at(toIdx(r, c));
+}
+
+function setDrop(r, c, val) {
+  dropOffsets.splice(toIdx(r, c), 1, val);
+}
 
 const MARBLE_PALETTE = [
   { top: '#5ce1ff', mid: '#0095e8', deep: '#002c59', glow: '#38bdf8', rim: '#bae6fd' },
@@ -91,6 +113,7 @@ function getGemSVG(gem) {
     ${specialOverlay}
   </svg>`;
 }
+
 function setMode(mode) {
   currentMode = mode;
   modeZenBtn.classList.toggle('active', mode === 'zen');
@@ -122,7 +145,7 @@ function initGame() {
 
   createInitialGrid();
   ensurePlayableBoard();
-  resetDropOffsets();
+  dropOffsets.fill(0);
   renderBoard();
 
   if (currentMode === 'timed') {
@@ -153,26 +176,21 @@ function endTimedGame() {
   overlayEl.classList.remove('hidden');
 }
 
-function resetDropOffsets() {
-  dropOffsets = Array.from({ length: ROWS }, () => Array(COLS).fill(0));
-}
-
 function createInitialGrid() {
-  grid = Array.from({ length: ROWS }, () => Array(COLS).fill(null));
+  grid.fill(null);
   for (let r = 0; r < ROWS; r++) {
     for (let c = 0; c < COLS; c++) {
       let type;
       do {
         type = Math.floor(Math.random() * GEM_TYPES);
       } while (
-        (c >= 2 && grid[r][c - 1].type === type && grid[r][c - 2].type === type) ||
-        (r >= 2 && grid[r - 1][c].type === type && grid[r - 2][c].type === type)
+        (c >= 2 && getGem(r, c - 1).type === type && getGem(r, c - 2).type === type) ||
+        (r >= 2 && getGem(r - 1, c).type === type && getGem(r - 2, c).type === type)
       );
-      grid[r][c] = { type, special: null };
+      setGem(r, c, { type, special: null });
     }
   }
 }
-
 function renderBoard(animateDrops = false) {
   boardEl.innerHTML = '';
   const fallingGems = [];
@@ -188,11 +206,13 @@ function renderBoard(animateDrops = false) {
         cell.classList.add('selected');
       }
 
-      if (grid[r][c] !== null) {
-        cell.innerHTML = getGemSVG(grid[r][c]);
-        if (animateDrops && dropOffsets[r][c] > 0) {
+      const gem = getGem(r, c);
+      if (gem !== null) {
+        cell.innerHTML = getGemSVG(gem);
+        const dropCount = getDrop(r, c);
+        if (animateDrops && dropCount > 0) {
           const gemEl = cell.querySelector('.gem');
-          const offsetPercent = dropOffsets[r][c] * 115;
+          const offsetPercent = dropCount * 115;
           gemEl.style.transition = 'none';
           gemEl.style.transform = `translateY(-${offsetPercent}%)`;
           fallingGems.push(gemEl);
@@ -287,6 +307,7 @@ function handleCellSelect(r, c) {
   selectedCell = null;
   attemptSwap(r1, c1, r, c);
 }
+
 async function attemptSwap(r1, c1, r2, c2) {
   isProcessing = true;
   swap(r1, c1, r2, c2);
@@ -309,9 +330,9 @@ async function attemptSwap(r1, c1, r2, c2) {
 }
 
 function swap(r1, c1, r2, c2) {
-  const temp = grid[r1][c1];
-  grid[r1][c1] = grid[r2][c2];
-  grid[r2][c2] = temp;
+  const temp = getGem(r1, c1);
+  setGem(r1, c1, getGem(r2, c2));
+  setGem(r2, c2, temp);
 }
 
 function analyzeMatches() {
@@ -321,10 +342,10 @@ function analyzeMatches() {
   for (let r = 0; r < ROWS; r++) {
     let c = 0;
     while (c < COLS) {
-      const gem = grid[r][c];
+      const gem = getGem(r, c);
       if (!gem) { c++; continue; }
       let end = c + 1;
-      while (end < COLS && grid[r][end] && grid[r][end].type === gem.type) {
+      while (end < COLS && getGem(r, end) && getGem(r, end).type === gem.type) {
         end++;
       }
       const len = end - c;
@@ -345,10 +366,10 @@ function analyzeMatches() {
   for (let c = 0; c < COLS; c++) {
     let r = 0;
     while (r < ROWS) {
-      const gem = grid[r][c];
+      const gem = getGem(r, c);
       if (!gem) { r++; continue; }
       let end = r + 1;
-      while (end < ROWS && grid[end][c] && grid[end][c].type === gem.type) {
+      while (end < ROWS && getGem(end, c) && getGem(end, c).type === gem.type) {
         end++;
       }
       const len = end - r;
@@ -382,7 +403,7 @@ function expandWithSpecials(initialCells) {
     if (finalMap.has(key)) continue;
     finalMap.set(key, { r, c });
 
-    const gem = grid[r][c];
+    const gem = getGem(r, c);
     if (!gem || !gem.special) continue;
 
     if (gem.special === 'row') {
@@ -417,7 +438,7 @@ async function processMatches(initialMatchData, swapTarget = null) {
     });
 
     allToClear.forEach(({ r, c }) => {
-      const cell = boardEl.children.item(r * COLS + c);
+      const cell = boardEl.children.item(toIdx(r, c));
       const gem = cell ? cell.querySelector('.gem') : null;
       if (gem) gem.classList.add('matched');
     });
@@ -426,11 +447,11 @@ async function processMatches(initialMatchData, swapTarget = null) {
     await sleep(200);
 
     allToClear.forEach(({ r, c }) => {
-      grid[r][c] = null;
+      setGem(r, c, null);
     });
 
     spawnsToCreate.forEach(({ r, c, type, special }) => {
-      grid[r][c] = { type, special };
+      setGem(r, c, { type, special });
     });
 
     applyGravityAndRefill();
@@ -444,23 +465,24 @@ async function processMatches(initialMatchData, swapTarget = null) {
 }
 
 function applyGravityAndRefill() {
-  resetDropOffsets();
+  dropOffsets.fill(0);
   for (let c = 0; c < COLS; c++) {
     let emptyRow = ROWS - 1;
     for (let r = ROWS - 1; r >= 0; r--) {
-      if (grid[r][c] !== null) {
-        grid[emptyRow][c] = grid[r][c];
-        dropOffsets[emptyRow][c] = emptyRow - r;
+      const gem = getGem(r, c);
+      if (gem !== null) {
+        setGem(emptyRow, c, gem);
+        setDrop(emptyRow, c, emptyRow - r);
         if (emptyRow !== r) {
-          grid[r][c] = null;
+          setGem(r, c, null);
         }
         emptyRow--;
       }
     }
     const newCount = emptyRow + 1;
     for (let r = emptyRow; r >= 0; r--) {
-      grid[r][c] = { type: Math.floor(Math.random() * GEM_TYPES), special: null };
-      dropOffsets[r][c] = newCount;
+      setGem(r, c, { type: Math.floor(Math.random() * GEM_TYPES), special: null });
+      setDrop(r, c, newCount);
     }
   }
 }
