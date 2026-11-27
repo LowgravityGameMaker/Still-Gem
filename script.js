@@ -11,103 +11,110 @@ let isProcessing = false;
 let touchStartX = 0;
 let touchStartY = 0;
 let touchStartCell = null;
+let svgUid = 0;
 
-// 6가지 반투명 유리 질감 & 다면체 광택 SVG 보석
-const GEMS = [
-  // 0: 루비
-  `<svg class="gem" viewBox="0 0 100 100">
-    <defs>
-      <linearGradient id="g-ruby" x1="0%" y1="0%" x2="100%" y2="100%">
-        <stop offset="0%" stop-color="#ff8a93" stop-opacity="0.9"/>
-        <stop offset="50%" stop-color="#e05663" stop-opacity="0.75"/>
-        <stop offset="100%" stop-color="#9e2a36" stop-opacity="0.9"/>
-      </linearGradient>
-    </defs>
-    <polygon points="50,6 94,50 50,94 6,50" fill="url(#g-ruby)" stroke="#ffb3b9" stroke-width="1.5" stroke-opacity="0.6"/>
-    <polygon points="50,24 76,50 50,76 24,50" fill="#ffffff" fill-opacity="0.16"/>
-    <polygon points="50,6 76,50 50,24" fill="#ffffff" fill-opacity="0.32"/>
-    <polygon points="50,6 24,50 50,24" fill="#ffffff" fill-opacity="0.18"/>
-    <polygon points="50,94 76,50 50,76" fill="#000000" fill-opacity="0.22"/>
-  </svg>`,
+// 고유 ID를 부여해 유리 광택과 반투명 질감을 선명하게 렌더링하는 함수
+function getGemSVG(type) {
+  const id = `gem-${type}-${++svgUid}`;
 
-  // 1: 사파이어
-  `<svg class="gem" viewBox="0 0 100 100">
-    <defs>
-      <linearGradient id="g-sapphire" x1="15%" y1="10%" x2="85%" y2="90%">
-        <stop offset="0%" stop-color="#8ecaff" stop-opacity="0.92"/>
-        <stop offset="55%" stop-color="#4a9be0" stop-opacity="0.75"/>
-        <stop offset="100%" stop-color="#235c94" stop-opacity="0.92"/>
-      </linearGradient>
-    </defs>
-    <circle cx="50" cy="50" r="41" fill="url(#g-sapphire)" stroke="#b8dfff" stroke-width="1.5" stroke-opacity="0.6"/>
-    <circle cx="50" cy="50" r="26" fill="#ffffff" fill-opacity="0.12"/>
-    <path d="M 24 34 A 32 32 0 0 1 68 20 A 36 36 0 0 0 24 34 Z" fill="#ffffff" fill-opacity="0.45"/>
-    <ellipse cx="36" cy="30" rx="8" ry="4" transform="rotate(-32 36 30)" fill="#ffffff" fill-opacity="0.5"/>
-  </svg>`,
+  switch (type) {
+    case 0: // 루비 (다이아몬드 컷)
+      return `<svg class="gem" viewBox="0 0 100 100">
+        <defs>
+          <linearGradient id="${id}" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#ff9aa2" stop-opacity="0.95"/>
+            <stop offset="45%" stop-color="#e05663" stop-opacity="0.72"/>
+            <stop offset="100%" stop-color="#8a1c27" stop-opacity="0.95"/>
+          </linearGradient>
+        </defs>
+        <polygon points="50,5 95,50 50,95 5,50" fill="url(#${id})" stroke="#ffc2c7" stroke-width="2" stroke-opacity="0.75"/>
+        <polygon points="50,24 76,50 50,76 24,50" fill="#ffffff" fill-opacity="0.22"/>
+        <polygon points="50,5 76,50 50,24" fill="#ffffff" fill-opacity="0.45"/>
+        <polygon points="50,5 24,50 50,24" fill="#ffffff" fill-opacity="0.25"/>
+        <polygon points="50,95 76,50 50,76" fill="#000000" fill-opacity="0.28"/>
+      </svg>`;
 
-  // 2: 에메랄드
-  `<svg class="gem" viewBox="0 0 100 100">
-    <defs>
-      <linearGradient id="g-emerald" x1="0%" y1="0%" x2="100%" y2="100%">
-        <stop offset="0%" stop-color="#b4e391" stop-opacity="0.9"/>
-        <stop offset="50%" stop-color="#7eb356" stop-opacity="0.75"/>
-        <stop offset="100%" stop-color="#477329" stop-opacity="0.9"/>
-      </linearGradient>
-    </defs>
-    <polygon points="24,10 76,10 90,24 90,76 76,90 24,90 10,76 10,24" fill="url(#g-emerald)" stroke="#d2f2ba" stroke-width="1.5" stroke-opacity="0.6"/>
-    <rect x="26" y="26" width="48" height="48" rx="4" fill="#ffffff" fill-opacity="0.14"/>
-    <polygon points="24,10 76,10 74,26 26,26" fill="#ffffff" fill-opacity="0.32"/>
-    <polygon points="10,24 24,10 26,26 26,74 10,76" fill="#ffffff" fill-opacity="0.16"/>
-    <polygon points="24,90 76,90 74,74 26,74" fill="#000000" fill-opacity="0.22"/>
-  </svg>`,
+    case 1: // 사파이어 (라운드 글래스)
+      return `<svg class="gem" viewBox="0 0 100 100">
+        <defs>
+          <linearGradient id="${id}" x1="15%" y1="10%" x2="85%" y2="90%">
+            <stop offset="0%" stop-color="#a3d5ff" stop-opacity="0.95"/>
+            <stop offset="50%" stop-color="#4a9be0" stop-opacity="0.72"/>
+            <stop offset="100%" stop-color="#1b4978" stop-opacity="0.95"/>
+          </linearGradient>
+        </defs>
+        <circle cx="50" cy="50" r="42" fill="url(#${id})" stroke="#cce7ff" stroke-width="2" stroke-opacity="0.75"/>
+        <circle cx="50" cy="50" r="25" fill="#ffffff" fill-opacity="0.18"/>
+        <path d="M 22 36 A 33 33 0 0 1 70 20 A 37 37 0 0 0 22 36 Z" fill="#ffffff" fill-opacity="0.55"/>
+        <ellipse cx="35" cy="29" rx="9" ry="4.5" transform="rotate(-32 35 29)" fill="#ffffff" fill-opacity="0.65"/>
+      </svg>`;
 
-  // 3: 토파즈
-  `<svg class="gem" viewBox="0 0 100 100">
-    <defs>
-      <linearGradient id="g-topaz" x1="0%" y1="0%" x2="100%" y2="100%">
-        <stop offset="0%" stop-color="#ffe09e" stop-opacity="0.92"/>
-        <stop offset="50%" stop-color="#d9aa52" stop-opacity="0.75"/>
-        <stop offset="100%" stop-color="#8f6720" stop-opacity="0.92"/>
-      </linearGradient>
-    </defs>
-    <polygon points="50,7 89,29 89,71 50,93 11,71 11,29" fill="url(#g-topaz)" stroke="#ffebb8" stroke-width="1.5" stroke-opacity="0.6"/>
-    <polygon points="50,25 73,38 73,62 50,75 27,62 27,38" fill="#ffffff" fill-opacity="0.16"/>
-    <polygon points="50,7 89,29 73,38 50,25 27,38 11,29" fill="#ffffff" fill-opacity="0.3"/>
-    <polygon points="50,93 89,71 73,62 50,75" fill="#000000" fill-opacity="0.2"/>
-  </svg>`,
+    case 2: // 에메랄드 (에메랄드 컷)
+      return `<svg class="gem" viewBox="0 0 100 100">
+        <defs>
+          <linearGradient id="${id}" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#c3eba4" stop-opacity="0.95"/>
+            <stop offset="50%" stop-color="#7eb356" stop-opacity="0.72"/>
+            <stop offset="100%" stop-color="#385e1e" stop-opacity="0.95"/>
+          </linearGradient>
+        </defs>
+        <polygon points="24,8 76,8 92,24 92,76 76,92 24,92 8,76 8,24" fill="url(#${id})" stroke="#dcf7c6" stroke-width="2" stroke-opacity="0.75"/>
+        <rect x="25" y="25" width="50" height="50" rx="4" fill="#ffffff" fill-opacity="0.2"/>
+        <polygon points="24,8 76,8 75,25 25,25" fill="#ffffff" fill-opacity="0.45"/>
+        <polygon points="8,24 24,8 25,25 25,75 8,76" fill="#ffffff" fill-opacity="0.25"/>
+        <polygon points="24,92 76,92 75,75 25,75" fill="#000000" fill-opacity="0.28"/>
+      </svg>`;
 
-  // 4: 자수정
-  `<svg class="gem" viewBox="0 0 100 100">
-    <defs>
-      <linearGradient id="g-amethyst" x1="20%" y1="0%" x2="80%" y2="100%">
-        <stop offset="0%" stop-color="#e3a8f5" stop-opacity="0.9"/>
-        <stop offset="55%" stop-color="#b262cc" stop-opacity="0.75"/>
-        <stop offset="100%" stop-color="#6b2c80" stop-opacity="0.9"/>
-      </linearGradient>
-    </defs>
-    <polygon points="50,10 92,83 8,83" fill="url(#g-amethyst)" stroke="#f0c9fc" stroke-width="1.5" stroke-opacity="0.6"/>
-    <polygon points="50,34 72,72 28,72" fill="#ffffff" fill-opacity="0.16"/>
-    <polygon points="50,10 72,72 50,34" fill="#ffffff" fill-opacity="0.28"/>
-    <polygon points="50,10 28,72 50,34" fill="#ffffff" fill-opacity="0.18"/>
-    <polygon points="8,83 92,83 72,72 28,72" fill="#000000" fill-opacity="0.22"/>
-  </svg>`,
+    case 3: // 토파즈 (육각형 컷)
+      return `<svg class="gem" viewBox="0 0 100 100">
+        <defs>
+          <linearGradient id="${id}" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#ffe8b3" stop-opacity="0.95"/>
+            <stop offset="50%" stop-color="#d9aa52" stop-opacity="0.72"/>
+            <stop offset="100%" stop-color="#7a5514" stop-opacity="0.95"/>
+          </linearGradient>
+        </defs>
+        <polygon points="50,6 90,28 90,72 50,94 10,72 10,28" fill="url(#${id})" stroke="#fff1cc" stroke-width="2" stroke-opacity="0.75"/>
+        <polygon points="50,25 73,38 73,62 50,75 27,62 27,38" fill="#ffffff" fill-opacity="0.22"/>
+        <polygon points="50,6 90,28 73,38 50,25 27,38 10,28" fill="#ffffff" fill-opacity="0.45"/>
+        <polygon points="50,94 90,72 73,62 50,75" fill="#000000" fill-opacity="0.26"/>
+      </svg>`;
 
-  // 5: 아쿠아마린
-  `<svg class="gem" viewBox="0 0 100 100">
-    <defs>
-      <linearGradient id="g-aqua" x1="0%" y1="0%" x2="100%" y2="100%">
-        <stop offset="0%" stop-color="#9be7f0" stop-opacity="0.92"/>
-        <stop offset="50%" stop-color="#48a8b5" stop-opacity="0.75"/>
-        <stop offset="100%" stop-color="#21656e" stop-opacity="0.92"/>
-      </linearGradient>
-    </defs>
-    <polygon points="31,9 69,9 91,31 91,69 69,91 31,91 9,69 9,31" fill="url(#g-aqua)" stroke="#c2f4fa" stroke-width="1.5" stroke-opacity="0.6"/>
-    <polygon points="36,26 64,26 74,36 74,64 64,74 36,74 26,64 26,36" fill="#ffffff" fill-opacity="0.16"/>
-    <polygon points="31,9 69,9 64,26 36,26" fill="#ffffff" fill-opacity="0.34"/>
-    <polygon points="9,31 31,9 36,26 26,36" fill="#ffffff" fill-opacity="0.24"/>
-    <polygon points="31,91 69,91 64,74 36,74" fill="#000000" fill-opacity="0.22"/>
-  </svg>`
-];
+    case 4: // 자수정 (삼각형 컷)
+      return `<svg class="gem" viewBox="0 0 100 100">
+        <defs>
+          <linearGradient id="${id}" x1="20%" y1="0%" x2="80%" y2="100%">
+            <stop offset="0%" stop-color="#eabaff" stop-opacity="0.95"/>
+            <stop offset="55%" stop-color="#b262cc" stop-opacity="0.72"/>
+            <stop offset="100%" stop-color="#58206b" stop-opacity="0.95"/>
+          </linearGradient>
+        </defs>
+        <polygon points="50,8 94,84 6,84" fill="url(#${id})" stroke="#f5d6ff" stroke-width="2" stroke-opacity="0.75"/>
+        <polygon points="50,34 72,72 28,72" fill="#ffffff" fill-opacity="0.22"/>
+        <polygon points="50,8 72,72 50,34" fill="#ffffff" fill-opacity="0.42"/>
+        <polygon points="50,8 28,72 50,34" fill="#ffffff" fill-opacity="0.25"/>
+        <polygon points="6,84 94,84 72,72 28,72" fill="#000000" fill-opacity="0.28"/>
+      </svg>`;
+
+    case 5: // 아쿠아마린 (팔각형 컷)
+      return `<svg class="gem" viewBox="0 0 100 100">
+        <defs>
+          <linearGradient id="${id}" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#b0f0f7" stop-opacity="0.95"/>
+            <stop offset="50%" stop-color="#48a8b5" stop-opacity="0.72"/>
+            <stop offset="100%" stop-color="#195259" stop-opacity="0.95"/>
+          </linearGradient>
+        </defs>
+        <polygon points="31,8 69,8 92,31 92,69 69,92 31,92 8,69 8,31" fill="url(#${id})" stroke="#d1f9fc" stroke-width="2" stroke-opacity="0.75"/>
+        <polygon points="36,26 64,26 74,36 74,64 64,74 36,74 26,64 26,36" fill="#ffffff" fill-opacity="0.22"/>
+        <polygon points="31,8 69,8 64,26 36,26" fill="#ffffff" fill-opacity="0.48"/>
+        <polygon points="8,31 31,8 36,26 26,36" fill="#ffffff" fill-opacity="0.32"/>
+        <polygon points="31,92 69,92 64,74 36,74" fill="#000000" fill-opacity="0.28"/>
+      </svg>`;
+  }
+}
+
+const GEM_TYPES = 6;
 
 function initGame() {
   score = 0;
@@ -125,7 +132,7 @@ function createInitialGrid() {
     for (let c = 0; c < COLS; c++) {
       let type;
       do {
-        type = Math.floor(Math.random() * GEMS.length);
+        type = Math.floor(Math.random() * GEM_TYPES);
       } while (
         (c >= 2 && grid[r][c - 1] === type && grid[r][c - 2] === type) ||
         (r >= 2 && grid[r - 1][c] === type && grid[r - 2][c] === type)
@@ -146,7 +153,7 @@ function renderBoard() {
         cell.classList.add('selected');
       }
       if (grid[r][c] !== null) {
-        cell.innerHTML = GEMS[grid[r][c]];
+        cell.innerHTML = getGemSVG(grid[r][c]);
       }
 
       cell.addEventListener('touchstart', (e) => handleTouchStart(e, r, c), { passive: true });
@@ -328,7 +335,7 @@ function applyGravityAndRefill() {
       }
     }
     for (let r = emptyRow; r >= 0; r--) {
-      grid[r][c] = Math.floor(Math.random() * GEMS.length);
+      grid[r][c] = Math.floor(Math.random() * GEM_TYPES);
     }
   }
 }
