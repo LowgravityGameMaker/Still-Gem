@@ -8,20 +8,17 @@ let grid = [];
 let selectedCell = null;
 let score = 0;
 let isProcessing = false;
+let touchStartX = 0;
+let touchStartY = 0;
+let touchStartCell = null;
 
 // 6가지 차분한 톤의 순수 SVG 기하학 보석
 const GEMS = [
-  // 0: 루비 (차분한 로즈 레드 - 다이아몬드형)
   `<svg class="gem" viewBox="0 0 100 100"><polygon points="50,8 92,50 50,92 8,50" fill="#e06c75"/><polygon points="50,24 76,50 50,76 24,50" fill="#eb8b92" opacity="0.5"/></svg>`,
-  // 1: 사파이어 (차분한 스틸 블루 - 원형)
   `<svg class="gem" viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="#61afef"/><circle cx="50" cy="50" r="24" fill="#8cc6f5" opacity="0.45"/></svg>`,
-  // 2: 에메랄드 (차분한 세이지 그린 - 둥근 사각형)
   `<svg class="gem" viewBox="0 0 100 100"><rect x="14" y="14" width="72" height="72" rx="16" fill="#98c379"/><rect x="28" y="28" width="44" height="44" rx="8" fill="#b5d69c" opacity="0.45"/></svg>`,
-  // 3: 토파즈 (차분한 앰버 옐로우 - 육각형)
   `<svg class="gem" viewBox="0 0 100 100"><polygon points="50,8 88,29 88,71 50,92 12,71 12,29" fill="#e5c07b"/><polygon points="50,24 74,37 74,63 50,76 26,63 26,37" fill="#edd29f" opacity="0.5"/></svg>`,
-  // 4: 자수정 (차분한 라벤더 퍼플 - 삼각형)
   `<svg class="gem" viewBox="0 0 100 100"><polygon points="50,12 90,82 10,82" fill="#c678dd"/><polygon points="50,34 72,72 28,72" fill="#d79ee8" opacity="0.45"/></svg>`,
-  // 5: 아쿠아마린 (차분한 틸 민트 - 팔각형)
   `<svg class="gem" viewBox="0 0 100 100"><polygon points="32,10 68,10 90,32 90,68 68,90 32,90 10,68 10,32" fill="#56b6c2"/><rect x="30" y="30" width="40" height="40" rx="6" fill="#7ecad4" opacity="0.45"/></svg>`
 ];
 
@@ -31,6 +28,7 @@ function initGame() {
   selectedCell = null;
   isProcessing = false;
   createInitialGrid();
+  ensurePlayableBoard();
   renderBoard();
 }
 
@@ -64,13 +62,57 @@ function renderBoard() {
       if (grid[r][c] !== null) {
         cell.innerHTML = GEMS[grid[r][c]];
       }
+
+      // 터치 스와이프 및 클릭 이벤트 연결
+      cell.addEventListener('touchstart', (e) => handleTouchStart(e, r, c), { passive: true });
+      cell.addEventListener('touchend', (e) => handleTouchEnd(e), { passive: true });
       cell.addEventListener('click', () => handleCellClick(r, c));
+
       boardEl.appendChild(cell);
     }
   }
 }
 
-async function handleCellClick(r, c) {
+function handleTouchStart(e, r, c) {
+  if (isProcessing) return;
+  const touch = e.changedTouches[0];
+  touchStartX = touch.clientX;
+  touchStartY = touch.clientY;
+  touchStartCell = { r, c };
+}
+
+function handleTouchEnd(e) {
+  if (isProcessing || !touchStartCell) return;
+  const touch = e.changedTouches[0];
+  const dx = touch.clientX - touchStartX;
+  const dy = touch.clientY - touchStartY;
+  const threshold = 24; // 스와이프 인식 최소 거리(px)
+
+  if (Math.abs(dx) < threshold && Math.abs(dy) < threshold) {
+    touchStartCell = null;
+    return; // 짧은 터치는 click 이벤트로 넘김
+  }
+
+  let targetR = touchStartCell.r;
+  let targetC = touchStartCell.c;
+
+  if (Math.abs(dx) > Math.abs(dy)) {
+    targetC += dx > 0 ? 1 : -1;
+  } else {
+    targetR += dy > 0 ? 1 : -1;
+  }
+
+  const startR = touchStartCell.r;
+  const startC = touchStartCell.c;
+  touchStartCell = null;
+
+  if (targetR >= 0 && targetR < ROWS && targetC >= 0 && targetC < COLS) {
+    selectedCell = null;
+    attemptSwap(startR, startC, targetR, targetC);
+  }
+}
+
+function handleCellClick(r, c) {
   if (isProcessing) return;
 
   if (!selectedCell) {
@@ -94,17 +136,20 @@ async function handleCellClick(r, c) {
     return;
   }
 
-  isProcessing = true;
   const r1 = selectedCell.r, c1 = selectedCell.c;
   selectedCell = null;
+  attemptSwap(r1, c1, r, c);
+}
 
-  swap(r1, c1, r, c);
+async function attemptSwap(r1, c1, r2, c2) {
+  isProcessing = true;
+  swap(r1, c1, r2, c2);
   renderBoard();
   await sleep(180);
 
   const matches = findMatches();
   if (matches.length === 0) {
-    swap(r1, c1, r, c);
+    swap(r1, c1, r2, c2);
     renderBoard();
     await sleep(150);
     isProcessing = false;
@@ -112,6 +157,8 @@ async function handleCellClick(r, c) {
   }
 
   await processMatches(matches);
+  ensurePlayableBoard();
+  renderBoard();
   isProcessing = false;
 }
 
@@ -198,6 +245,33 @@ function applyGravityAndRefill() {
     for (let r = emptyRow; r >= 0; r--) {
       grid[r][c] = Math.floor(Math.random() * GEMS.length);
     }
+  }
+}
+
+// 유효한 수가 있는지 검사하고 없으면 자동 재배치
+function hasValidMove() {
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      if (c + 1 < COLS) {
+        swap(r, c, r, c + 1);
+        const match = findMatches().length > 0;
+        swap(r, c, r, c + 1);
+        if (match) return true;
+      }
+      if (r + 1 < ROWS) {
+        swap(r, c, r + 1, c);
+        const match = findMatches().length > 0;
+        swap(r, c, r + 1, c);
+        if (match) return true;
+      }
+    }
+  }
+  return false;
+}
+
+function ensurePlayableBoard() {
+  while (!hasValidMove()) {
+    createInitialGrid();
   }
 }
 
