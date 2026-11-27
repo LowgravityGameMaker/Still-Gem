@@ -11,7 +11,6 @@ let isProcessing = false;
 let touchStartX = 0;
 let touchStartY = 0;
 let touchStartCell = null;
-let ignoreNextClick = false;
 let svgUid = 0;
 
 function getGemSVG(type) {
@@ -156,9 +155,9 @@ function renderBoard() {
         cell.innerHTML = getGemSVG(grid[r][c]);
       }
 
-      cell.addEventListener('touchstart', (e) => handleTouchStart(e, r, c), { passive: true });
-      cell.addEventListener('touchend', (e) => handleTouchEnd(e), { passive: true });
-      cell.addEventListener('click', () => handleCellClick(r, c));
+      cell.addEventListener('touchstart', (e) => handleTouchStart(e, r, c), { passive: false });
+      cell.addEventListener('touchend', (e) => handleTouchEnd(e), { passive: false });
+      cell.addEventListener('mousedown', () => handleCellSelect(r, c));
 
       boardEl.appendChild(cell);
     }
@@ -166,6 +165,7 @@ function renderBoard() {
 }
 
 function handleTouchStart(e, r, c) {
+  e.preventDefault();
   if (isProcessing) return;
   const touch = e.changedTouches[0];
   touchStartX = touch.clientX;
@@ -174,20 +174,26 @@ function handleTouchStart(e, r, c) {
 }
 
 function handleTouchEnd(e) {
+  e.preventDefault();
   if (isProcessing || !touchStartCell) return;
   const touch = e.changedTouches[0];
   const dx = touch.clientX - touchStartX;
   const dy = touch.clientY - touchStartY;
-  const threshold = 20;
+  const threshold = 18;
 
+  const startR = touchStartCell.r;
+  const startC = touchStartCell.c;
+  touchStartCell = null;
+
+  // 움직임이 작으면 일반 터치(선택)로 처리
   if (Math.abs(dx) < threshold && Math.abs(dy) < threshold) {
-    touchStartCell = null;
+    handleCellSelect(startR, startC);
     return;
   }
 
-  ignoreNextClick = true;
-  let targetR = touchStartCell.r;
-  let targetC = touchStartCell.c;
+  // 스와이프 방향으로 즉시 교환
+  let targetR = startR;
+  let targetC = startC;
 
   if (Math.abs(dx) > Math.abs(dy)) {
     targetC += dx > 0 ? 1 : -1;
@@ -195,21 +201,13 @@ function handleTouchEnd(e) {
     targetR += dy > 0 ? 1 : -1;
   }
 
-  const startR = touchStartCell.r;
-  const startC = touchStartCell.c;
-  touchStartCell = null;
-
   if (targetR >= 0 && targetR < ROWS && targetC >= 0 && targetC < COLS) {
     selectedCell = null;
     attemptSwap(startR, startC, targetR, targetC);
   }
 }
 
-function handleCellClick(r, c) {
-  if (ignoreNextClick) {
-    ignoreNextClick = false;
-    return;
-  }
+function handleCellSelect(r, c) {
   if (isProcessing) return;
 
   if (!selectedCell) {
