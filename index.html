@@ -9,7 +9,7 @@
 <body>
 
   <div class="header">
-    <div class="title">STILL GEM</div>
+    <div class="title">STILL GEM <span id="debug-msg" style="font-size:0.75rem;color:#f87171;">[HTML v13]</span></div>
     <div class="scores">
       <div class="score-group hidden" id="timer-group">
         <span class="score-label">TIME</span>
@@ -46,6 +46,11 @@
     <button id="restart-btn">새로 시작</button>
   </div>
 
+  <script>
+    window.onerror = function(msg, url, line) {
+      document.getElementById('debug-msg').textContent = '에러(' + line + '줄): ' + msg;
+    };
+  </script>
   <script src="script.js?v=13"></script>
 </body>
 </html>
