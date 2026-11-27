@@ -4,13 +4,22 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>STILL GEM</title>
-  <link rel="stylesheet" href="style.css?v=6">
+  <link rel="stylesheet" href="style.css?v=7">
 </head>
 <body>
 
   <div class="header">
     <div class="title">STILL GEM</div>
-    <div class="score-box" id="score">0</div>
+    <div class="scores">
+      <div class="score-group">
+        <span class="score-label">BEST</span>
+        <span class="best-box" id="best-score">0</span>
+      </div>
+      <div class="score-group">
+        <span class="score-label">SCORE</span>
+        <span class="score-box" id="score">0</span>
+      </div>
+    </div>
   </div>
 
   <div id="board"></div>
@@ -19,6 +28,6 @@
     <button id="restart-btn">새로 시작</button>
   </div>
 
-  <script src="script.js?v=6"></script>
+  <script src="script.js?v=7"></script>
 </body>
 </html>
