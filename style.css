@@ -33,7 +33,7 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: flex-end;
-  margin-bottom: 16px;
+  margin-bottom: 12px;
   padding: 0 4px;
 }
 
@@ -47,7 +47,7 @@ body {
 
 .scores {
   display: flex;
-  gap: 18px;
+  gap: 16px;
   align-items: flex-end;
 }
 
@@ -57,6 +57,10 @@ body {
   align-items: flex-end;
 }
 
+.score-group.hidden {
+  display: none;
+}
+
 .score-label {
   font-size: 0.65rem;
   letter-spacing: 0.08em;
@@ -64,11 +68,15 @@ body {
   margin-bottom: 2px;
 }
 
-.best-box {
+.stat-box {
   font-size: 1.1rem;
   font-weight: 600;
   color: var(--sub-text);
   font-variant-numeric: tabular-nums;
+}
+
+.stat-box.urgent {
+  color: #f87171;
 }
 
 .score-box {
@@ -79,11 +87,44 @@ body {
   line-height: 1;
 }
 
-#board {
+.mode-switch {
+  width: 92vw;
+  max-width: 400px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.mode-btn {
+  background-color: transparent;
+  color: var(--sub-text);
+  border: 1px solid #2b2f38;
+  padding: 8px 0;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.mode-btn.active {
+  background-color: var(--cell-bg);
+  color: var(--text-color);
+  border-color: #475569;
+  font-weight: 600;
+}
+
+.board-wrapper {
+  position: relative;
   width: 92vw;
   height: 92vw;
   max-width: 400px;
   max-height: 400px;
+}
+
+#board {
+  width: 100%;
+  height: 100%;
   background-color: var(--board-bg);
   border-radius: 14px;
   padding: 8px;
@@ -114,10 +155,11 @@ body {
 }
 
 .gem {
-  width: 78%;
-  height: 78%;
+  width: 82%;
+  height: 82%;
   transition: transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.2s ease;
   pointer-events: none;
+  will-change: transform;
 }
 
 .gem.matched {
@@ -125,8 +167,46 @@ body {
   opacity: 0;
 }
 
+.overlay {
+  position: absolute;
+  inset: 0;
+  background-color: rgba(24, 26, 31, 0.88);
+  backdrop-filter: blur(4px);
+  border-radius: 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+}
+
+.overlay.hidden {
+  display: none;
+}
+
+.overlay-title {
+  font-size: 0.9rem;
+  letter-spacing: 0.15em;
+  color: var(--sub-text);
+  margin-bottom: 8px;
+}
+
+.overlay-score {
+  font-size: 2.6rem;
+  font-weight: 700;
+  color: var(--text-color);
+  font-variant-numeric: tabular-nums;
+  margin-bottom: 6px;
+}
+
+.overlay-best {
+  font-size: 0.95rem;
+  color: var(--sub-text);
+  margin-bottom: 24px;
+}
+
 .controls {
-  margin-top: 20px;
+  margin-top: 18px;
 }
 
 button {
