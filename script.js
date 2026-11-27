@@ -1,128 +1,113 @@
 const ROWS = 8;
 const COLS = 8;
+const GEM_TYPES = 6;
+const BEST_SCORE_KEY = 'still_gem_best_score';
+
 const boardEl = document.getElementById('board');
 const scoreEl = document.getElementById('score');
+const bestScoreEl = document.getElementById('best-score');
 const restartBtn = document.getElementById('restart-btn');
 
+// grid[r][c]는 { type: 0~5, special: null | 'row' | 'col' } 형태
 let grid = [];
+let dropOffsets = [];
 let selectedCell = null;
 let score = 0;
+let bestScore = Number(localStorage.getItem(BEST_SCORE_KEY)) || 0;
 let isProcessing = false;
 let touchStartX = 0;
 let touchStartY = 0;
 let touchStartCell = null;
 let svgUid = 0;
 
-function getGemSVG(type) {
-  const id = `gem-${type}-${++svgUid}`;
+// 사진 속 투명한 색유리 구슬(Glass Marble) 질감 팔레트
+const MARBLE_PALETTE = [
+  // 0: 시안 블루 (맑고 깊은 하늘빛 유리구슬)
+  { top: '#5ce1ff', mid: '#0095e8', deep: '#002c59', glow: '#38bdf8', rim: '#bae6fd' },
+  // 1: 앰버 오렌지 (따뜻한 호박빛 유리구슬)
+  { top: '#ff9e44', mid: '#d94e00', deep: '#4a1200', glow: '#fb923c', rim: '#fed7aa' },
+  // 2: 에메랄드 그린 (깊은 숲빛 유리구슬)
+  { top: '#4ade80', mid: '#0d7a32', deep: '#022910', glow: '#22c55e', rim: '#bbf7d0' },
+  // 3: 루비 크림슨 (맑은 석류빛 유리구슬)
+  { top: '#ff6b8b', mid: '#c81d4e', deep: '#450417', glow: '#f43f5e', rim: '#fecdd3' },
+  // 4: 아메시스트 바이올렛 (깊은 자수정 유리구슬)
+  { top: '#d896ff', mid: '#7e22ce', deep: '#29064a', glow: '#c084fc', rim: '#e9d5ff' },
+  // 5: 골든 허니 (영롱한 꿀빛 유리구슬)
+  { top: '#fde047', mid: '#ca8a04', deep: '#422800', glow: '#facc15', rim: '#fef08a' }
+];
 
-  switch (type) {
-    case 0: // 루비
-      return `<svg class="gem" viewBox="0 0 100 100">
-        <defs>
-          <linearGradient id="${id}" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stop-color="#ff9aa2" stop-opacity="0.95"/>
-            <stop offset="45%" stop-color="#e05663" stop-opacity="0.72"/>
-            <stop offset="100%" stop-color="#8a1c27" stop-opacity="0.95"/>
-          </linearGradient>
-        </defs>
-        <polygon points="50,5 95,50 50,95 5,50" fill="url(#${id})" stroke="#ffc2c7" stroke-width="2" stroke-opacity="0.75"/>
-        <polygon points="50,24 76,50 50,76 24,50" fill="#ffffff" fill-opacity="0.22"/>
-        <polygon points="50,5 76,50 50,24" fill="#ffffff" fill-opacity="0.45"/>
-        <polygon points="50,5 24,50 50,24" fill="#ffffff" fill-opacity="0.25"/>
-        <polygon points="50,95 76,50 50,76" fill="#000000" fill-opacity="0.28"/>
-      </svg>`;
+function getGemSVG(gem) {
+  const p = MARBLE_PALETTE[gem.type];
+  const uid = ++svgUid;
+  const bodyId = `mb-body-${uid}`;
+  const causticId = `mb-caustic-${uid}`;
+  const shadowId = `mb-shadow-${uid}`;
 
-    case 1: // 사파이어
-      return `<svg class="gem" viewBox="0 0 100 100">
-        <defs>
-          <linearGradient id="${id}" x1="15%" y1="10%" x2="85%" y2="90%">
-            <stop offset="0%" stop-color="#a3d5ff" stop-opacity="0.95"/>
-            <stop offset="50%" stop-color="#4a9be0" stop-opacity="0.72"/>
-            <stop offset="100%" stop-color="#1b4978" stop-opacity="0.95"/>
-          </linearGradient>
-        </defs>
-        <circle cx="50" cy="50" r="42" fill="url(#${id})" stroke="#cce7ff" stroke-width="2" stroke-opacity="0.75"/>
-        <circle cx="50" cy="50" r="25" fill="#ffffff" fill-opacity="0.18"/>
-        <path d="M 22 36 A 33 33 0 0 1 70 20 A 37 37 0 0 0 22 36 Z" fill="#ffffff" fill-opacity="0.55"/>
-        <ellipse cx="35" cy="29" rx="9" ry="4.5" transform="rotate(-32 35 29)" fill="#ffffff" fill-opacity="0.65"/>
-      </svg>`;
-
-    case 2: // 에메랄드
-      return `<svg class="gem" viewBox="0 0 100 100">
-        <defs>
-          <linearGradient id="${id}" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stop-color="#c3eba4" stop-opacity="0.95"/>
-            <stop offset="50%" stop-color="#7eb356" stop-opacity="0.72"/>
-            <stop offset="100%" stop-color="#385e1e" stop-opacity="0.95"/>
-          </linearGradient>
-        </defs>
-        <polygon points="24,8 76,8 92,24 92,76 76,92 24,92 8,76 8,24" fill="url(#${id})" stroke="#dcf7c6" stroke-width="2" stroke-opacity="0.75"/>
-        <rect x="25" y="25" width="50" height="50" rx="4" fill="#ffffff" fill-opacity="0.2"/>
-        <polygon points="24,8 76,8 75,25 25,25" fill="#ffffff" fill-opacity="0.45"/>
-        <polygon points="8,24 24,8 25,25 25,75 8,76" fill="#ffffff" fill-opacity="0.25"/>
-        <polygon points="24,92 76,92 75,75 25,75" fill="#000000" fill-opacity="0.28"/>
-      </svg>`;
-
-    case 3: // 토파즈
-      return `<svg class="gem" viewBox="0 0 100 100">
-        <defs>
-          <linearGradient id="${id}" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stop-color="#ffe8b3" stop-opacity="0.95"/>
-            <stop offset="50%" stop-color="#d9aa52" stop-opacity="0.72"/>
-            <stop offset="100%" stop-color="#7a5514" stop-opacity="0.95"/>
-          </linearGradient>
-        </defs>
-        <polygon points="50,6 90,28 90,72 50,94 10,72 10,28" fill="url(#${id})" stroke="#fff1cc" stroke-width="2" stroke-opacity="0.75"/>
-        <polygon points="50,25 73,38 73,62 50,75 27,62 27,38" fill="#ffffff" fill-opacity="0.22"/>
-        <polygon points="50,6 90,28 73,38 50,25 27,38 10,28" fill="#ffffff" fill-opacity="0.45"/>
-        <polygon points="50,94 90,72 73,62 50,75" fill="#000000" fill-opacity="0.26"/>
-      </svg>`;
-
-    case 4: // 자수정
-      return `<svg class="gem" viewBox="0 0 100 100">
-        <defs>
-          <linearGradient id="${id}" x1="20%" y1="0%" x2="80%" y2="100%">
-            <stop offset="0%" stop-color="#eabaff" stop-opacity="0.95"/>
-            <stop offset="55%" stop-color="#b262cc" stop-opacity="0.72"/>
-            <stop offset="100%" stop-color="#58206b" stop-opacity="0.95"/>
-          </linearGradient>
-        </defs>
-        <polygon points="50,8 94,84 6,84" fill="url(#${id})" stroke="#f5d6ff" stroke-width="2" stroke-opacity="0.75"/>
-        <polygon points="50,34 72,72 28,72" fill="#ffffff" fill-opacity="0.22"/>
-        <polygon points="50,8 72,72 50,34" fill="#ffffff" fill-opacity="0.42"/>
-        <polygon points="50,8 28,72 50,34" fill="#ffffff" fill-opacity="0.25"/>
-        <polygon points="6,84 94,84 72,72 28,72" fill="#000000" fill-opacity="0.28"/>
-      </svg>`;
-
-    case 5: // 아쿠아마린
-      return `<svg class="gem" viewBox="0 0 100 100">
-        <defs>
-          <linearGradient id="${id}" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stop-color="#b0f0f7" stop-opacity="0.95"/>
-            <stop offset="50%" stop-color="#48a8b5" stop-opacity="0.72"/>
-            <stop offset="100%" stop-color="#195259" stop-opacity="0.95"/>
-          </linearGradient>
-        </defs>
-        <polygon points="31,8 69,8 92,31 92,69 69,92 31,92 8,69 8,31" fill="url(#${id})" stroke="#d1f9fc" stroke-width="2" stroke-opacity="0.75"/>
-        <polygon points="36,26 64,26 74,36 74,64 64,74 36,74 26,64 26,36" fill="#ffffff" fill-opacity="0.22"/>
-        <polygon points="31,8 69,8 64,26 36,26" fill="#ffffff" fill-opacity="0.48"/>
-        <polygon points="8,31 31,8 36,26 26,36" fill="#ffffff" fill-opacity="0.32"/>
-        <polygon points="31,92 69,92 64,74 36,74" fill="#000000" fill-opacity="0.28"/>
-      </svg>`;
+  // 특수 보석(가로/세로 라인 제거)일 경우 은은한 유리 링 표시
+  let specialOverlay = '';
+  if (gem.special === 'row') {
+    specialOverlay = `
+      <line x1="12" y1="50" x2="88" y2="50" stroke="#ffffff" stroke-width="3" stroke-linecap="round" opacity="0.85"/>
+      <circle cx="50" cy="50" r="39" fill="none" stroke="#ffffff" stroke-width="1.5" stroke-dasharray="6 4" opacity="0.7"/>
+    `;
+  } else if (gem.special === 'col') {
+    specialOverlay = `
+      <line x1="50" y1="12" x2="50" y2="88" stroke="#ffffff" stroke-width="3" stroke-linecap="round" opacity="0.85"/>
+      <circle cx="50" cy="50" r="39" fill="none" stroke="#ffffff" stroke-width="1.5" stroke-dasharray="6 4" opacity="0.7"/>
+    `;
   }
+
+  return `<svg class="gem" viewBox="0 0 100 100">
+    <defs>
+      <radialGradient id="${bodyId}" cx="38%" cy="32%" r="65%" fx="34%" fy="26%">
+        <stop offset="0%" stop-color="${p.top}" stop-opacity="0.96"/>
+        <stop offset="58%" stop-color="${p.mid}" stop-opacity="0.88"/>
+        <stop offset="88%" stop-color="${p.deep}" stop-opacity="0.96"/>
+        <stop offset="100%" stop-color="${p.mid}" stop-opacity="0.92"/>
+      </radialGradient>
+      <radialGradient id="${causticId}" cx="50%" cy="50%" r="50%">
+        <stop offset="0%" stop-color="#ffffff" stop-opacity="0.85"/>
+        <stop offset="45%" stop-color="${p.glow}" stop-opacity="0.65"/>
+        <stop offset="100%" stop-color="${p.glow}" stop-opacity="0"/>
+      </radialGradient>
+      <radialGradient id="${shadowId}" cx="50%" cy="50%" r="50%">
+        <stop offset="0%" stop-color="#000000" stop-opacity="0.55"/>
+        <stop offset="70%" stop-color="${p.glow}" stop-opacity="0.35"/>
+        <stop offset="100%" stop-color="#000000" stop-opacity="0"/>
+      </radialGradient>
+    </defs>
+
+    <!-- 바닥에 맺히는 색 그림자와 빛 투과 -->
+    <ellipse cx="50" cy="91" rx="30" ry="7" fill="url(#${shadowId})"/>
+
+    <!-- 유리구슬 본체 -->
+    <circle cx="50" cy="48" r="40" fill="url(#${bodyId})" stroke="${p.rim}" stroke-width="1.2" stroke-opacity="0.55"/>
+
+    <!-- 구슬 하단 내부로 굴절되어 모이는 영롱한 빛 -->
+    <ellipse cx="50" cy="76" rx="22" ry="9" fill="url(#${causticId})"/>
+
+    <!-- 상단 창문 반사광 (2중 하이라이트) -->
+    <path d="M 33 21 A 28 28 0 0 1 46 17 L 47 22 A 23 23 0 0 0 36 25 Z" fill="#ffffff" fill-opacity="0.88"/>
+    <path d="M 50 17 A 28 28 0 0 1 62 21 L 59 25 A 23 23 0 0 0 49 22 Z" fill="#ffffff" fill-opacity="0.82"/>
+    <ellipse cx="26" cy="31" rx="3.5" ry="6" transform="rotate(28 26 31)" fill="#ffffff" fill-opacity="0.45"/>
+
+    ${specialOverlay}
+  </svg>`;
 }
-
-const GEM_TYPES = 6;
-
 function initGame() {
   score = 0;
   updateScore(0);
+  bestScoreEl.textContent = bestScore.toLocaleString();
   selectedCell = null;
   isProcessing = false;
   createInitialGrid();
   ensurePlayableBoard();
+  resetDropOffsets();
   renderBoard();
+}
+
+function resetDropOffsets() {
+  dropOffsets = Array.from({ length: ROWS }, () => Array(COLS).fill(0));
 }
 
 function createInitialGrid() {
@@ -133,26 +118,38 @@ function createInitialGrid() {
       do {
         type = Math.floor(Math.random() * GEM_TYPES);
       } while (
-        (c >= 2 && grid[r][c - 1] === type && grid[r][c - 2] === type) ||
-        (r >= 2 && grid[r - 1][c] === type && grid[r - 2][c] === type)
+        (c >= 2 && grid[r][c - 1].type === type && grid[r][c - 2].type === type) ||
+        (r >= 2 && grid[r - 1][c].type === type && grid[r - 2][c].type === type)
       );
-      grid[r][c] = type;
+      grid[r][c] = { type, special: null };
     }
   }
 }
-function renderBoard() {
+
+function renderBoard(animateDrops = false) {
   boardEl.innerHTML = '';
+  const fallingGems = [];
+
   for (let r = 0; r < ROWS; r++) {
     for (let c = 0; c < COLS; c++) {
       const cell = document.createElement('div');
       cell.className = 'cell';
       cell.dataset.r = r;
       cell.dataset.c = c;
+
       if (selectedCell && selectedCell.r === r && selectedCell.c === c) {
         cell.classList.add('selected');
       }
+
       if (grid[r][c] !== null) {
         cell.innerHTML = getGemSVG(grid[r][c]);
+        if (animateDrops && dropOffsets[r][c] > 0) {
+          const gemEl = cell.querySelector('.gem');
+          const offsetPercent = dropOffsets[r][c] * 115;
+          gemEl.style.transition = 'none';
+          gemEl.style.transform = `translateY(-${offsetPercent}%)`;
+          fallingGems.push(gemEl);
+        }
       }
 
       cell.addEventListener('touchstart', (e) => handleTouchStart(e, r, c), { passive: false });
@@ -162,12 +159,23 @@ function renderBoard() {
       boardEl.appendChild(cell);
     }
   }
+
+  if (fallingGems.length > 0) {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        fallingGems.forEach((gemEl) => {
+          gemEl.style.transition = 'transform 0.28s cubic-bezier(0.22, 1, 0.36, 1)';
+          gemEl.style.transform = 'translateY(0)';
+        });
+      });
+    });
+  }
 }
 
 function handleTouchStart(e, r, c) {
   e.preventDefault();
   if (isProcessing) return;
-  const touch = e.changedTouches[0];
+  const touch = e.changedTouches;
   touchStartX = touch.clientX;
   touchStartY = touch.clientY;
   touchStartCell = { r, c };
@@ -176,7 +184,7 @@ function handleTouchStart(e, r, c) {
 function handleTouchEnd(e) {
   e.preventDefault();
   if (isProcessing || !touchStartCell) return;
-  const touch = e.changedTouches[0];
+  const touch = e.changedTouches;
   const dx = touch.clientX - touchStartX;
   const dy = touch.clientY - touchStartY;
   const threshold = 18;
@@ -185,13 +193,11 @@ function handleTouchEnd(e) {
   const startC = touchStartCell.c;
   touchStartCell = null;
 
-  // 움직임이 작으면 일반 터치(선택)로 처리
   if (Math.abs(dx) < threshold && Math.abs(dy) < threshold) {
     handleCellSelect(startR, startC);
     return;
   }
 
-  // 스와이프 방향으로 즉시 교환
   let targetR = startR;
   let targetC = startC;
 
@@ -235,15 +241,14 @@ function handleCellSelect(r, c) {
   selectedCell = null;
   attemptSwap(r1, c1, r, c);
 }
-
 async function attemptSwap(r1, c1, r2, c2) {
   isProcessing = true;
   swap(r1, c1, r2, c2);
   renderBoard();
   await sleep(180);
 
-  const matches = findMatches();
-  if (matches.length === 0) {
+  const matchData = analyzeMatches();
+  if (matchData.matchedCells.length === 0) {
     swap(r1, c1, r2, c2);
     renderBoard();
     await sleep(150);
@@ -251,7 +256,7 @@ async function attemptSwap(r1, c1, r2, c2) {
     return;
   }
 
-  await processMatches(matches);
+  await processMatches(matchData, { r: r2, c: c2 });
   ensurePlayableBoard();
   renderBoard();
   isProcessing = false;
@@ -263,82 +268,157 @@ function swap(r1, c1, r2, c2) {
   grid[r2][c2] = temp;
 }
 
-function findMatches() {
-  const matchedSet = new Set();
+function analyzeMatches() {
+  const matchedMap = new Map();
+  const specialSpawns = [];
 
+  // 가로 매치 탐색
   for (let r = 0; r < ROWS; r++) {
-    for (let c = 0; c < COLS - 2; c++) {
-      const type = grid[r][c];
-      if (type !== null && type === grid[r][c + 1] && type === grid[r][c + 2]) {
-        let k = c;
-        while (k < COLS && grid[r][k] === type) {
-          matchedSet.add(`${r},${k}`);
-          k++;
+    let c = 0;
+    while (c < COLS) {
+      const gem = grid[r][c];
+      if (!gem) { c++; continue; }
+      let end = c + 1;
+      while (end < COLS && grid[r][end] && grid[r][end].type === gem.type) {
+        end++;
+      }
+      const len = end - c;
+      if (len >= 3) {
+        const group = [];
+        for (let k = c; k < end; k++) {
+          matchedMap.set(`${r},${k}`, { r, c: k });
+          group.push({ r, c: k });
+        }
+        if (len >= 4) {
+          specialSpawns.push({ group, type: gem.type, special: 'col' });
         }
       }
+      c = end;
     }
   }
 
+  // 세로 매치 탐색
   for (let c = 0; c < COLS; c++) {
-    for (let r = 0; r < ROWS - 2; r++) {
-      const type = grid[r][c];
-      if (type !== null && type === grid[r + 1][c] && type === grid[r + 2][c]) {
-        let k = r;
-        while (k < ROWS && grid[k][c] === type) {
-          matchedSet.add(`${k},${c}`);
-          k++;
+    let r = 0;
+    while (r < ROWS) {
+      const gem = grid[r][c];
+      if (!gem) { r++; continue; }
+      let end = r + 1;
+      while (end < ROWS && grid[end][c] && grid[end][c].type === gem.type) {
+        end++;
+      }
+      const len = end - r;
+      if (len >= 3) {
+        const group = [];
+        for (let k = r; k < end; k++) {
+          matchedMap.set(`${k},${c}`, { r: k, c });
+          group.push({ r: k, c });
+        }
+        if (len >= 4) {
+          specialSpawns.push({ group, type: gem.type, special: 'row' });
         }
       }
+      r = end;
     }
   }
 
-  return Array.from(matchedSet).map(str => {
-    const [r, c] = str.split(',').map(Number);
-    return { r, c };
-  });
+  return {
+    matchedCells: Array.from(matchedMap.values()),
+    specialSpawns
+  };
 }
 
-async function processMatches(initialMatches) {
-  let matches = initialMatches;
+function expandWithSpecials(initialCells) {
+  const finalMap = new Map();
+  const queue = [...initialCells];
+
+  while (queue.length > 0) {
+    const { r, c } = queue.shift();
+    const key = `${r},${c}`;
+    if (finalMap.has(key)) continue;
+    finalMap.set(key, { r, c });
+
+    const gem = grid[r][c];
+    if (!gem || !gem.special) continue;
+
+    if (gem.special === 'row') {
+      for (let col = 0; col < COLS; col++) {
+        if (!finalMap.has(`${r},${col}`)) queue.push({ r, c: col });
+      }
+    } else if (gem.special === 'col') {
+      for (let row = 0; row < ROWS; row++) {
+        if (!finalMap.has(`${row},${c}`)) queue.push({ r: row, c });
+      }
+    }
+  }
+
+  return Array.from(finalMap.values());
+}
+
+async function processMatches(initialMatchData, swapTarget = null) {
+  let matchData = initialMatchData;
   let combo = 1;
 
-  while (matches.length > 0) {
-    matches.forEach(({ r, c }) => {
+  while (matchData.matchedCells.length > 0) {
+    const allToClear = expandWithSpecials(matchData.matchedCells);
+
+    // 4개 이상 매치 시 생성될 특수 보석 위치 결정
+    const spawnsToCreate = [];
+    matchData.specialSpawns.forEach(({ group, type, special }) => {
+      let pos = group;
+      if (swapTarget) {
+        const found = group.find(p => p.r === swapTarget.r && p.c === swapTarget.c);
+        if (found) pos = found;
+      }
+      spawnsToCreate.push({ r: pos.r, c: pos.c, type, special });
+    });
+
+    allToClear.forEach(({ r, c }) => {
       const cell = boardEl.children[r * COLS + c];
-      const gem = cell.querySelector('.gem');
+      const gem = cell ? cell.querySelector('.gem') : null;
       if (gem) gem.classList.add('matched');
     });
 
-    updateScore(matches.length * 10 * combo);
-    await sleep(220);
+    updateScore(allToClear.length * 10 * combo);
+    await sleep(210);
 
-    matches.forEach(({ r, c }) => {
+    allToClear.forEach(({ r, c }) => {
       grid[r][c] = null;
     });
 
-    applyGravityAndRefill();
-    renderBoard();
-    await sleep(220);
+    // 특수 보석 배치
+    spawnsToCreate.forEach(({ r, c, type, special }) => {
+      grid[r][c] = { type, special };
+    });
 
-    matches = findMatches();
+    applyGravityAndRefill();
+    renderBoard(true);
+    await sleep(290);
+
+    swapTarget = null;
+    matchData = analyzeMatches();
     combo++;
   }
 }
 
 function applyGravityAndRefill() {
+  resetDropOffsets();
   for (let c = 0; c < COLS; c++) {
     let emptyRow = ROWS - 1;
     for (let r = ROWS - 1; r >= 0; r--) {
       if (grid[r][c] !== null) {
         grid[emptyRow][c] = grid[r][c];
+        dropOffsets[emptyRow][c] = emptyRow - r;
         if (emptyRow !== r) {
           grid[r][c] = null;
         }
         emptyRow--;
       }
     }
+    const newCount = emptyRow + 1;
     for (let r = emptyRow; r >= 0; r--) {
-      grid[r][c] = Math.floor(Math.random() * GEM_TYPES);
+      grid[r][c] = { type: Math.floor(Math.random() * GEM_TYPES), special: null };
+      dropOffsets[r][c] = newCount;
     }
   }
 }
@@ -348,13 +428,13 @@ function hasValidMove() {
     for (let c = 0; c < COLS; c++) {
       if (c + 1 < COLS) {
         swap(r, c, r, c + 1);
-        const match = findMatches().length > 0;
+        const match = analyzeMatches().matchedCells.length > 0;
         swap(r, c, r, c + 1);
         if (match) return true;
       }
       if (r + 1 < ROWS) {
         swap(r, c, r + 1, c);
-        const match = findMatches().length > 0;
+        const match = analyzeMatches().matchedCells.length > 0;
         swap(r, c, r + 1, c);
         if (match) return true;
       }
@@ -372,6 +452,11 @@ function ensurePlayableBoard() {
 function updateScore(points) {
   score += points;
   scoreEl.textContent = score.toLocaleString();
+  if (score > bestScore) {
+    bestScore = score;
+    bestScoreEl.textContent = bestScore.toLocaleString();
+    localStorage.setItem(BEST_SCORE_KEY, bestScore);
+  }
 }
 
 function sleep(ms) {
