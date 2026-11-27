@@ -25,6 +25,7 @@ body {
   justify-content: center;
   min-height: 100vh;
   overflow: hidden;
+  touch-action: manipulation;
 }
 
 .header {
@@ -63,6 +64,7 @@ body {
   grid-template-rows: repeat(8, 1fr);
   gap: 6px;
   box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+  touch-action: none;
 }
 
 .cell {
@@ -87,6 +89,7 @@ body {
   height: 72%;
   filter: drop-shadow(0 3px 4px rgba(0, 0, 0, 0.35));
   transition: transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.2s ease;
+  pointer-events: none;
 }
 
 .gem.matched {
