@@ -4,7 +4,6 @@
   --cell-bg: #2b2f38;
   --text-color: #e2e8f0;
   --sub-text: #94a3b8;
-  --accent: #64748b;
 }
 
 * {
@@ -33,22 +32,51 @@ body {
   max-width: 400px;
   display: flex;
   justify-content: space-between;
-  align-items: baseline;
+  align-items: flex-end;
   margin-bottom: 16px;
   padding: 0 4px;
 }
 
 .title {
+  font-size: 1.15rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--sub-text);
+  padding-bottom: 2px;
+}
+
+.scores {
+  display: flex;
+  gap: 18px;
+  align-items: flex-end;
+}
+
+.score-group {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.score-label {
+  font-size: 0.65rem;
+  letter-spacing: 0.08em;
+  color: var(--sub-text);
+  margin-bottom: 2px;
+}
+
+.best-box {
   font-size: 1.1rem;
   font-weight: 600;
-  letter-spacing: 0.05em;
   color: var(--sub-text);
+  font-variant-numeric: tabular-nums;
 }
 
 .score-box {
   font-size: 1.5rem;
   font-weight: 700;
+  color: var(--text-color);
   font-variant-numeric: tabular-nums;
+  line-height: 1;
 }
 
 #board {
@@ -57,19 +85,20 @@ body {
   max-width: 400px;
   max-height: 400px;
   background-color: var(--board-bg);
-  border-radius: 12px;
+  border-radius: 14px;
   padding: 8px;
   display: grid;
   grid-template-columns: repeat(8, 1fr);
   grid-template-rows: repeat(8, 1fr);
   gap: 6px;
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35);
   touch-action: none;
+  overflow: hidden;
 }
 
 .cell {
   background-color: var(--cell-bg);
-  border-radius: 8px;
+  border-radius: 9px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -85,10 +114,9 @@ body {
 }
 
 .gem {
-  width: 72%;
-  height: 72%;
-  filter: drop-shadow(0 3px 4px rgba(0, 0, 0, 0.35));
-  transition: transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.2s ease;
+  width: 78%;
+  height: 78%;
+  transition: transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.2s ease;
   pointer-events: none;
 }
 
@@ -105,7 +133,7 @@ button {
   background-color: var(--cell-bg);
   color: var(--sub-text);
   border: 1px solid #3b4252;
-  padding: 10px 20px;
+  padding: 10px 22px;
   border-radius: 8px;
   font-size: 0.9rem;
   cursor: pointer;
