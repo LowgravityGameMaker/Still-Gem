@@ -18,7 +18,7 @@ const finalScoreEl = document.getElementById('final-score');
 const finalBestEl = document.getElementById('final-best');
 const overlayRestartBtn = document.getElementById('overlay-restart-btn');
 
-let currentMode = 'zen'; // 'zen' | 'timed'
+let currentMode = 'zen';
 let grid = [];
 let dropOffsets = [];
 let selectedCell = null;
@@ -33,7 +33,6 @@ let touchStartY = 0;
 let touchStartCell = null;
 let svgUid = 0;
 
-// 투명 색유리 구슬(Glass Marble) 팔레트
 const MARBLE_PALETTE = [
   { top: '#5ce1ff', mid: '#0095e8', deep: '#002c59', glow: '#38bdf8', rim: '#bae6fd' },
   { top: '#ff9e44', mid: '#d94e00', deep: '#4a1200', glow: '#fb923c', rim: '#fed7aa' },
@@ -44,7 +43,7 @@ const MARBLE_PALETTE = [
 ];
 
 function getGemSVG(gem) {
-  const p = MARBLE_PALETTE[gem.type];
+  const p = MARBLE_PALETTE.at(gem.type);
   const uid = ++svgUid;
   const bodyId = `mb-body-${uid}`;
   const causticId = `mb-caustic-${uid}`;
@@ -209,7 +208,6 @@ function renderBoard(animateDrops = false) {
   }
 
   if (fallingGems.length > 0) {
-    // 브라우저가 초기 상단 위치를 먼저 그린 뒤 부드럽게 낙하하도록 강제 리플로우 적용
     boardEl.offsetHeight;
     fallingGems.forEach((gemEl) => {
       gemEl.style.transition = 'transform 0.3s cubic-bezier(0.22, 1, 0.36, 1)';
@@ -221,7 +219,8 @@ function renderBoard(animateDrops = false) {
 function handleTouchStart(e, r, c) {
   e.preventDefault();
   if (isProcessing || isGameOver) return;
-  const touch = e.changedTouches;
+  const touch = e.changedTouches.item(0);
+  if (!touch) return;
   touchStartX = touch.clientX;
   touchStartY = touch.clientY;
   touchStartCell = { r, c };
@@ -230,7 +229,8 @@ function handleTouchStart(e, r, c) {
 function handleTouchEnd(e) {
   e.preventDefault();
   if (isProcessing || isGameOver || !touchStartCell) return;
-  const touch = e.changedTouches;
+  const touch = e.changedTouches.item(0);
+  if (!touch) return;
   const dx = touch.clientX - touchStartX;
   const dy = touch.clientY - touchStartY;
   const threshold = 18;
@@ -408,7 +408,7 @@ async function processMatches(initialMatchData, swapTarget = null) {
 
     const spawnsToCreate = [];
     matchData.specialSpawns.forEach(({ group, type, special }) => {
-      let pos = group;
+      let pos = group.at(0);
       if (swapTarget) {
         const found = group.find(p => p.r === swapTarget.r && p.c === swapTarget.c);
         if (found) pos = found;
@@ -417,7 +417,7 @@ async function processMatches(initialMatchData, swapTarget = null) {
     });
 
     allToClear.forEach(({ r, c }) => {
-      const cell = boardEl.children[r * COLS + c];
+      const cell = boardEl.children.item(r * COLS + c);
       const gem = cell ? cell.querySelector('.gem') : null;
       if (gem) gem.classList.add('matched');
     });
