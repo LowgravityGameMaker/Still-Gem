@@ -56,45 +56,38 @@ function setDrop(r, c, val) {
   dropOffsets.splice(toIdx(r, c), 1, val);
 }
 
-// 6가지 서로 다른 보석 형태 + 투명 유리 깊이와 굴절광
-const GEM_SPECS = [
-  // 0: 아쿠아 블루 (브릴리언트 라운드 컷)
+const GEM_SPECS = Array.of(
   {
     top: '#8ae8ff', mid: '#1ea7e8', deep: '#0c4a7a', glow: '#7dd3fc', rim: '#bae6fd',
     shape: `<circle cx="50" cy="49" r="39" `,
     inner: `<circle cx="50" cy="49" r="24" fill="none" stroke="#ffffff" stroke-width="1" stroke-opacity="0.28"/>`
   },
-  // 1: 로즈 루비 (페어/물방울 컷)
   {
     top: '#ff9eb5', mid: '#e13b64', deep: '#6e102b', glow: '#fda4af', rim: '#fecdd3',
     shape: `<path d="M50,9 C68,32 85,48 85,65 C85,83 69,92 50,92 C31,92 15,83 15,65 C15,48 32,32 50,9 Z" `,
     inner: `<path d="M50,24 C61,40 71,50 71,63 C71,74 61,80 50,80 C39,80 29,74 29,63 C29,50 39,40 50,24 Z" fill="none" stroke="#ffffff" stroke-width="1" stroke-opacity="0.28"/>`
   },
-  // 2: 에메랄드 (에메랄드 팔각 컷)
   {
     top: '#86efac', mid: '#16a34a', deep: '#064e24', glow: '#6ee7b7', rim: '#bbf7d0',
     shape: `<polygon points="27,10 73,10 88,25 88,75 73,90 27,90 12,75 12,25" `,
     inner: `<polygon points="33,23 67,23 76,32 76,68 67,77 33,77 24,68 24,32" fill="none" stroke="#ffffff" stroke-width="1" stroke-opacity="0.28"/>`
   },
-  // 3: 앰버 토파즈 (쿠션 라운드 사각 컷)
   {
     top: '#fde08d', mid: '#e08e1b', deep: '#6b3804', glow: '#fcd34d', rim: '#fef08a',
     shape: `<rect x="13" y="13" width="74" height="74" rx="22" `,
     inner: `<rect x="25" y="25" width="50" height="50" rx="14" fill="none" stroke="#ffffff" stroke-width="1" stroke-opacity="0.28"/>`
   },
-  // 4: 아메시스트 (트릴리언트 삼각 컷)
   {
     top: '#e5b8ff', mid: '#9333ea', deep: '#3b0764', glow: '#d8b4fe', rim: '#f3e8ff',
     shape: `<path d="M50,10 Q66,10 89,75 Q93,87 80,87 L20,87 Q7,87 11,75 Q34,10 50,10 Z" `,
     inner: `<polygon points="50,28 73,75 27,75" fill="none" stroke="#ffffff" stroke-width="1" stroke-opacity="0.28"/>`
   },
-  // 5: 시트린 골드 (마퀴즈 셔틀 컷)
   {
     top: '#fef08a', mid: '#ca8a04', deep: '#573602', glow: '#fde047', rim: '#fef9c3',
     shape: `<path d="M50,7 C76,25 86,40 86,50 C86,60 76,75 50,93 C24,75 14,60 14,50 C14,40 24,25 50,7 Z" `,
     inner: `<path d="M50,22 C66,34 72,43 72,50 C72,57 66,66 50,78 C34,66 28,57 28,50 C28,43 34,34 50,22 Z" fill="none" stroke="#ffffff" stroke-width="1" stroke-opacity="0.28"/>`
   }
-];
+);
 
 function getGemSVG(gem) {
   const s = GEM_SPECS.at(gem.type);
@@ -218,7 +211,7 @@ function createInitialGrid() {
 
 function renderBoard(animateDrops = false) {
   boardEl.innerHTML = '';
-  const fallingGems = [];
+  const fallingGems = Array.of();
 
   for (let r = 0; r < ROWS; r++) {
     for (let c = 0; c < COLS; c++) {
@@ -381,8 +374,8 @@ function swap(r1, c1, r2, c2) {
 }
 function analyzeMatches() {
   const matchedMap = new Map();
-  const hGroups = [];
-  const vGroups = [];
+  const hGroups = Array.of();
+  const vGroups = Array.of();
 
   for (let r = 0; r < ROWS; r++) {
     let c = 0;
@@ -394,7 +387,7 @@ function analyzeMatches() {
         end++;
       }
       if (end - c >= 3) {
-        const group = [];
+        const group = Array.of();
         for (let k = c; k < end; k++) {
           matchedMap.set(`${r},${k}`, { r, c: k });
           group.push({ r, c: k });
@@ -415,7 +408,7 @@ function analyzeMatches() {
         end++;
       }
       if (end - r >= 3) {
-        const group = [];
+        const group = Array.of();
         for (let k = r; k < end; k++) {
           matchedMap.set(`${k},${c}`, { r: k, c });
           group.push({ r: k, c });
@@ -426,7 +419,7 @@ function analyzeMatches() {
     }
   }
 
-  const specialSpawns = [];
+  const specialSpawns = Array.of();
   const usedGroups = new Set();
 
   hGroups.forEach((hg, hi) => {
@@ -437,7 +430,7 @@ function analyzeMatches() {
         usedGroups.add(`h${hi}`);
         usedGroups.add(`v${vi}`);
         specialSpawns.push({
-          group: [intersect],
+          group: Array.of(intersect),
           type: hg.type,
           special: 'bomb'
         });
@@ -471,7 +464,7 @@ function analyzeMatches() {
 
 function expandWithSpecials(initialCells) {
   const finalMap = new Map();
-  const queue = [...initialCells];
+  const queue = Array.from(initialCells);
 
   while (queue.length > 0) {
     const { r, c } = queue.shift();
@@ -535,7 +528,7 @@ async function processMatches(initialMatchData, swapTarget = null) {
   while (matchData.matchedCells.length > 0) {
     const allToClear = expandWithSpecials(matchData.matchedCells);
 
-    const spawnsToCreate = [];
+    const spawnsToCreate = Array.of();
     matchData.specialSpawns.forEach(({ group, type, special }) => {
       let pos = group.at(0);
       if (swapTarget) {
