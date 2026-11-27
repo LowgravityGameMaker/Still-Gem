@@ -11,14 +11,14 @@ let isProcessing = false;
 let touchStartX = 0;
 let touchStartY = 0;
 let touchStartCell = null;
+let ignoreNextClick = false;
 let svgUid = 0;
 
-// 고유 ID를 부여해 유리 광택과 반투명 질감을 선명하게 렌더링하는 함수
 function getGemSVG(type) {
   const id = `gem-${type}-${++svgUid}`;
 
   switch (type) {
-    case 0: // 루비 (다이아몬드 컷)
+    case 0: // 루비
       return `<svg class="gem" viewBox="0 0 100 100">
         <defs>
           <linearGradient id="${id}" x1="0%" y1="0%" x2="100%" y2="100%">
@@ -34,7 +34,7 @@ function getGemSVG(type) {
         <polygon points="50,95 76,50 50,76" fill="#000000" fill-opacity="0.28"/>
       </svg>`;
 
-    case 1: // 사파이어 (라운드 글래스)
+    case 1: // 사파이어
       return `<svg class="gem" viewBox="0 0 100 100">
         <defs>
           <linearGradient id="${id}" x1="15%" y1="10%" x2="85%" y2="90%">
@@ -49,7 +49,7 @@ function getGemSVG(type) {
         <ellipse cx="35" cy="29" rx="9" ry="4.5" transform="rotate(-32 35 29)" fill="#ffffff" fill-opacity="0.65"/>
       </svg>`;
 
-    case 2: // 에메랄드 (에메랄드 컷)
+    case 2: // 에메랄드
       return `<svg class="gem" viewBox="0 0 100 100">
         <defs>
           <linearGradient id="${id}" x1="0%" y1="0%" x2="100%" y2="100%">
@@ -65,7 +65,7 @@ function getGemSVG(type) {
         <polygon points="24,92 76,92 75,75 25,75" fill="#000000" fill-opacity="0.28"/>
       </svg>`;
 
-    case 3: // 토파즈 (육각형 컷)
+    case 3: // 토파즈
       return `<svg class="gem" viewBox="0 0 100 100">
         <defs>
           <linearGradient id="${id}" x1="0%" y1="0%" x2="100%" y2="100%">
@@ -80,7 +80,7 @@ function getGemSVG(type) {
         <polygon points="50,94 90,72 73,62 50,75" fill="#000000" fill-opacity="0.26"/>
       </svg>`;
 
-    case 4: // 자수정 (삼각형 컷)
+    case 4: // 자수정
       return `<svg class="gem" viewBox="0 0 100 100">
         <defs>
           <linearGradient id="${id}" x1="20%" y1="0%" x2="80%" y2="100%">
@@ -96,7 +96,7 @@ function getGemSVG(type) {
         <polygon points="6,84 94,84 72,72 28,72" fill="#000000" fill-opacity="0.28"/>
       </svg>`;
 
-    case 5: // 아쿠아마린 (팔각형 컷)
+    case 5: // 아쿠아마린
       return `<svg class="gem" viewBox="0 0 100 100">
         <defs>
           <linearGradient id="${id}" x1="0%" y1="0%" x2="100%" y2="100%">
@@ -167,7 +167,7 @@ function renderBoard() {
 
 function handleTouchStart(e, r, c) {
   if (isProcessing) return;
-  const touch = e.changedTouches;
+  const touch = e.changedTouches[0];
   touchStartX = touch.clientX;
   touchStartY = touch.clientY;
   touchStartCell = { r, c };
@@ -175,16 +175,17 @@ function handleTouchStart(e, r, c) {
 
 function handleTouchEnd(e) {
   if (isProcessing || !touchStartCell) return;
-  const touch = e.changedTouches;
+  const touch = e.changedTouches[0];
   const dx = touch.clientX - touchStartX;
   const dy = touch.clientY - touchStartY;
-  const threshold = 24;
+  const threshold = 20;
 
   if (Math.abs(dx) < threshold && Math.abs(dy) < threshold) {
     touchStartCell = null;
     return;
   }
 
+  ignoreNextClick = true;
   let targetR = touchStartCell.r;
   let targetC = touchStartCell.c;
 
@@ -205,6 +206,10 @@ function handleTouchEnd(e) {
 }
 
 function handleCellClick(r, c) {
+  if (ignoreNextClick) {
+    ignoreNextClick = false;
+    return;
+  }
   if (isProcessing) return;
 
   if (!selectedCell) {
