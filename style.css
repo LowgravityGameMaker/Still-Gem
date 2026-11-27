@@ -1,0 +1,113 @@
+:root {
+  --bg-color: #181a1f;
+  --board-bg: #22252c;
+  --cell-bg: #2b2f38;
+  --text-color: #e2e8f0;
+  --sub-text: #94a3b8;
+  --accent: #64748b;
+}
+
+* {
+  box-sizing: border-box;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background-color: var(--bg-color);
+  color: var(--text-color);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  overflow: hidden;
+}
+
+.header {
+  width: 92vw;
+  max-width: 400px;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 16px;
+  padding: 0 4px;
+}
+
+.title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  color: var(--sub-text);
+}
+
+.score-box {
+  font-size: 1.5rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+#board {
+  width: 92vw;
+  height: 92vw;
+  max-width: 400px;
+  max-height: 400px;
+  background-color: var(--board-bg);
+  border-radius: 12px;
+  padding: 8px;
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  grid-template-rows: repeat(8, 1fr);
+  gap: 6px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+}
+
+.cell {
+  background-color: var(--cell-bg);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: transform 0.15s ease, background-color 0.15s ease;
+  position: relative;
+}
+
+.cell.selected {
+  background-color: #3b4252;
+  box-shadow: inset 0 0 0 2px #94a3b8;
+  transform: scale(0.94);
+}
+
+.gem {
+  width: 68%;
+  height: 68%;
+  transition: transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.2s ease;
+}
+
+.gem.matched {
+  transform: scale(0);
+  opacity: 0;
+}
+
+.controls {
+  margin-top: 20px;
+}
+
+button {
+  background-color: var(--cell-bg);
+  color: var(--sub-text);
+  border: 1px solid #3b4252;
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: background-color 0.15s;
+}
+
+button:active {
+  background-color: #3b4252;
+}
