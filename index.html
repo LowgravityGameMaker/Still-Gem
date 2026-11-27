@@ -4,16 +4,20 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>STILL GEM</title>
-  <link rel="stylesheet" href="style.css?v=7">
+  <link rel="stylesheet" href="style.css?v=8">
 </head>
 <body>
 
   <div class="header">
     <div class="title">STILL GEM</div>
     <div class="scores">
-      <div class="score-group">
+      <div class="score-group hidden" id="timer-group">
+        <span class="score-label">TIME</span>
+        <span class="stat-box" id="timer">60</span>
+      </div>
+      <div class="score-group hidden" id="best-group">
         <span class="score-label">BEST</span>
-        <span class="best-box" id="best-score">0</span>
+        <span class="stat-box" id="best-score">0</span>
       </div>
       <div class="score-group">
         <span class="score-label">SCORE</span>
@@ -22,12 +26,25 @@
     </div>
   </div>
 
-  <div id="board"></div>
+  <div class="mode-switch">
+    <button class="mode-btn active" id="mode-zen">무한 게임</button>
+    <button class="mode-btn" id="mode-timed">베스트 도전</button>
+  </div>
+
+  <div class="board-wrapper">
+    <div id="board"></div>
+    <div class="overlay hidden" id="game-over-overlay">
+      <div class="overlay-title">TIME OVER</div>
+      <div class="overlay-score" id="final-score">0</div>
+      <div class="overlay-best" id="final-best">BEST 0</div>
+      <button id="overlay-restart-btn">다시 도전</button>
+    </div>
+  </div>
 
   <div class="controls">
     <button id="restart-btn">새로 시작</button>
   </div>
 
-  <script src="script.js?v=7"></script>
+  <script src="script.js?v=8"></script>
 </body>
 </html>
