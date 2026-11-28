@@ -4,6 +4,7 @@ const TOTAL_CELLS = ROWS * COLS;
 const GEM_TYPES = 6;
 const BEST_SCORE_KEY = 'still_gem_timed_best';
 const SOUND_MUTE_KEY = 'still_gem_muted';
+const HINT_ENABLED_KEY = 'still_gem_hint_enabled';
 const TIMED_LIMIT = 60;
 const HINT_DELAY = 4200;
 
@@ -17,6 +18,7 @@ const bestGroupEl = document.getElementById('best-group');
 const modeZenBtn = document.getElementById('mode-zen');
 const modeTimedBtn = document.getElementById('mode-timed');
 const soundBtn = document.getElementById('sound-btn');
+const hintBtn = document.getElementById('hint-btn');
 const shuffleToastEl = document.getElementById('shuffle-toast');
 const restartBtn = document.getElementById('restart-btn');
 const overlayEl = document.getElementById('game-over-overlay');
@@ -32,6 +34,7 @@ let hintCells = [];
 let score = 0;
 let bestScore = Number(localStorage.getItem(BEST_SCORE_KEY)) || 0;
 let isMuted = localStorage.getItem(SOUND_MUTE_KEY) === 'true';
+let isHintEnabled = localStorage.getItem(HINT_ENABLED_KEY) !== 'false';
 let timeLeft = TIMED_LIMIT;
 let timerInterval = null;
 let hintTimeout = null;
@@ -193,6 +196,10 @@ function updateSoundBtn() {
   soundBtn.classList.toggle('muted', isMuted);
 }
 
+function updateHintBtn() {
+  hintBtn.classList.toggle('muted', !isHintEnabled);
+}
+
 function setMode(mode) {
   currentMode = mode;
   modeZenBtn.classList.toggle('active', mode === 'zen');
@@ -292,7 +299,7 @@ function renderBoard(animateDrops = false) {
       if (selectedCell && selectedCell.r === r && selectedCell.c === c) {
         cell.classList.add('selected');
       }
-      if (hintCells.some(h => h.r === r && h.c === c)) {
+      if (isHintEnabled && hintCells.some(h => h.r === r && h.c === c)) {
         cell.classList.add('hint');
       }
 
@@ -800,9 +807,9 @@ function clearHint() {
 
 function resetHintTimer() {
   clearHintTimer();
-  if (isGameOver || isProcessing) return;
+  if (!isHintEnabled || isGameOver || isProcessing) return;
   hintTimeout = setTimeout(() => {
-    if (isGameOver || isProcessing) return;
+    if (!isHintEnabled || isGameOver || isProcessing) return;
     const move = findValidMove();
     if (move) {
       hintCells = move;
@@ -832,10 +839,23 @@ soundBtn.addEventListener('click', () => {
   if (!isMuted) playSFX('select');
 });
 
+hintBtn.addEventListener('click', () => {
+  isHintEnabled = !isHintEnabled;
+  localStorage.setItem(HINT_ENABLED_KEY, isHintEnabled);
+  updateHintBtn();
+  if (!isHintEnabled) {
+    clearHint();
+  } else {
+    playSFX('select');
+    resetHintTimer();
+  }
+});
+
 modeZenBtn.addEventListener('click', () => setMode('zen'));
 modeTimedBtn.addEventListener('click', () => setMode('timed'));
 restartBtn.addEventListener('click', initGame);
 overlayRestartBtn.addEventListener('click', initGame);
 
 updateSoundBtn();
+updateHintBtn();
 setMode('zen');
