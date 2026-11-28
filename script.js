@@ -2,26 +2,34 @@ const ROWS = 8;
 const COLS = 8;
 const TOTAL_CELLS = ROWS * COLS;
 const GEM_TYPES = 6;
-const BEST_SCORE_KEY = 'still_gem_timed_best';
+const BEST_TIMED_KEY = 'still_gem_timed_best';
+const BEST_MOVES_KEY = 'still_gem_moves_best';
 const SOUND_MUTE_KEY = 'still_gem_muted';
 const HINT_ENABLED_KEY = 'still_gem_hint_enabled';
 const TIMED_LIMIT = 60;
+const MOVES_LIMIT = 30;
 const HINT_DELAY = 4200;
+const FEVER_DURATION = 6000;
 
 const boardEl = document.getElementById('board');
 const fxLayerEl = document.getElementById('fx-layer');
 const scoreEl = document.getElementById('score');
+const scoreLabelEl = document.getElementById('score-label');
 const bestScoreEl = document.getElementById('best-score');
-const timerEl = document.getElementById('timer');
-const timerGroupEl = document.getElementById('timer-group');
+const statGroupEl = document.getElementById('stat-group');
+const statLabelEl = document.getElementById('stat-label');
+const statValEl = document.getElementById('stat-val');
 const bestGroupEl = document.getElementById('best-group');
 const modeZenBtn = document.getElementById('mode-zen');
 const modeTimedBtn = document.getElementById('mode-timed');
+const modeMovesBtn = document.getElementById('mode-moves');
 const soundBtn = document.getElementById('sound-btn');
 const hintBtn = document.getElementById('hint-btn');
+const feverFillEl = document.getElementById('fever-fill');
 const shuffleToastEl = document.getElementById('shuffle-toast');
 const restartBtn = document.getElementById('restart-btn');
 const overlayEl = document.getElementById('game-over-overlay');
+const overlayTitleEl = document.getElementById('overlay-title');
 const finalScoreEl = document.getElementById('final-score');
 const finalBestEl = document.getElementById('final-best');
 const overlayRestartBtn = document.getElementById('overlay-restart-btn');
@@ -32,12 +40,20 @@ let dropOffsets = new Array(TOTAL_CELLS).fill(0);
 let selectedCell = null;
 let hintCells = [];
 let score = 0;
-let bestScore = Number(localStorage.getItem(BEST_SCORE_KEY)) || 0;
+let bestTimed = Number(localStorage.getItem(BEST_TIMED_KEY)) || 0;
+let bestMoves = Number(localStorage.getItem(BEST_MOVES_KEY)) || 0;
 let isMuted = localStorage.getItem(SOUND_MUTE_KEY) === 'true';
 let isHintEnabled = localStorage.getItem(HINT_ENABLED_KEY) !== 'false';
+
 let timeLeft = TIMED_LIMIT;
+let movesLeft = MOVES_LIMIT;
 let timerInterval = null;
 let hintTimeout = null;
+
+let feverGauge = 0;
+let isFever = false;
+let feverTimer = null;
+
 let isGameOver = false;
 let isProcessing = false;
 let touchStartX = 0;
@@ -87,6 +103,13 @@ function playSFX(kind, combo = 1) {
   } else if (kind === 'special') {
     playTone(300, 0.22, 'triangle', 0.1, 0);
     playTone(600, 0.25, 'sine', 0.09, 0.05);
+  } else if (kind === 'prism') {
+    playTone(523.25, 0.18, 'sine', 0.09, 0);
+    playTone(659.25, 0.2, 'sine', 0.09, 0.06);
+    playTone(783.99, 0.25, 'sine', 0.09, 0.12);
+  } else if (kind === 'fever') {
+    playTone(587.33, 0.14, 'triangle', 0.08, 0);
+    playTone(880, 0.22, 'sine', 0.09, 0.07);
   }
 }
 
@@ -150,11 +173,34 @@ const GEM_SPECS = Array.of(
   }
 );
 function getGemSVG(gem) {
-  const s = GEM_SPECS.at(gem.type);
   const uid = ++svgUid;
   const bodyId = `g-body-${uid}`;
   const causticId = `g-caustic-${uid}`;
 
+  // 5매치 최강 보석: 눈이 편안한 차분한 오팔/진주빛 프리즘 코어
+  if (gem.special === 'prism') {
+    return `<svg class="gem" viewBox="0 0 100 100">
+      <defs>
+        <radialGradient id="${bodyId}" cx="38%" cy="32%" r="65%">
+          <stop offset="0%" stop-color="#ffffff" stop-opacity="0.96"/>
+          <stop offset="35%" stop-color="#bae6fd" stop-opacity="0.88"/>
+          <stop offset="68%" stop-color="#e9d5ff" stop-opacity="0.86"/>
+          <stop offset="100%" stop-color="#64748b" stop-opacity="0.92"/>
+        </radialGradient>
+        <radialGradient id="${causticId}" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stop-color="#ffffff" stop-opacity="0.9"/>
+          <stop offset="60%" stop-color="#a7f3d0" stop-opacity="0.45"/>
+          <stop offset="100%" stop-color="#a7f3d0" stop-opacity="0"/>
+        </radialGradient>
+      </defs>
+      <circle cx="50" cy="50" r="39" fill="url(#${bodyId})" stroke="#f8fafc" stroke-width="1.8" stroke-opacity="0.8"/>
+      <polygon points="50,20 76,50 50,80 24,50" fill="none" stroke="#ffffff" stroke-width="1.3" stroke-opacity="0.55"/>
+      <circle cx="50" cy="50" r="11" fill="url(#${causticId})"/>
+      <path d="M 35 23 A 26 26 0 0 1 48 20 L 49 24 A 21 21 0 0 0 38 27 Z" fill="#ffffff" fill-opacity="0.9"/>
+    </svg>`;
+  }
+
+  const s = GEM_SPECS.at(gem.type);
   let specialOverlay = '';
   if (gem.special === 'row') {
     specialOverlay = `<line x1="14" y1="50" x2="86" y2="50" stroke="#ffffff" stroke-width="3.2" stroke-linecap="round" opacity="0.9"/>`;
@@ -204,12 +250,20 @@ function setMode(mode) {
   currentMode = mode;
   modeZenBtn.classList.toggle('active', mode === 'zen');
   modeTimedBtn.classList.toggle('active', mode === 'timed');
+  modeMovesBtn.classList.toggle('active', mode === 'moves');
 
   if (mode === 'timed') {
-    timerGroupEl.classList.remove('hidden');
+    statGroupEl.classList.remove('hidden');
     bestGroupEl.classList.remove('hidden');
+    statLabelEl.textContent = 'TIME';
+    bestScoreEl.textContent = bestTimed.toLocaleString();
+  } else if (mode === 'moves') {
+    statGroupEl.classList.remove('hidden');
+    bestGroupEl.classList.remove('hidden');
+    statLabelEl.textContent = 'MOVES';
+    bestScoreEl.textContent = bestMoves.toLocaleString();
   } else {
-    timerGroupEl.classList.add('hidden');
+    statGroupEl.classList.add('hidden');
     bestGroupEl.classList.add('hidden');
   }
   initGame();
@@ -218,20 +272,29 @@ function setMode(mode) {
 async function initGame() {
   clearInterval(timerInterval);
   clearHintTimer();
+  resetFeverState();
+
   score = 0;
   timeLeft = TIMED_LIMIT;
+  movesLeft = MOVES_LIMIT;
   isGameOver = false;
   selectedCell = null;
   hintCells = [];
   isProcessing = false;
 
   scoreEl.textContent = '0';
-  bestScoreEl.textContent = bestScore.toLocaleString();
-  timerEl.textContent = timeLeft;
-  timerEl.classList.remove('urgent');
+  statValEl.classList.remove('urgent');
   overlayEl.classList.add('hidden');
   shuffleToastEl.classList.add('hidden');
   fxLayerEl.innerHTML = '';
+
+  if (currentMode === 'timed') {
+    statValEl.textContent = timeLeft;
+    bestScoreEl.textContent = bestTimed.toLocaleString();
+  } else if (currentMode === 'moves') {
+    statValEl.textContent = movesLeft;
+    bestScoreEl.textContent = bestMoves.toLocaleString();
+  }
 
   createInitialGrid();
   await ensurePlayableBoard(false);
@@ -247,25 +310,29 @@ async function initGame() {
 function startTimer() {
   timerInterval = setInterval(() => {
     timeLeft--;
-    timerEl.textContent = timeLeft;
+    statValEl.textContent = timeLeft;
     if (timeLeft <= 10) {
-      timerEl.classList.add('urgent');
+      statValEl.classList.add('urgent');
     }
     if (timeLeft <= 0) {
       clearInterval(timerInterval);
-      endTimedGame();
+      endGame('TIME OVER');
     }
   }, 1000);
 }
 
-function endTimedGame() {
+function endGame(titleText) {
   isGameOver = true;
   clearHintTimer();
+  resetFeverState();
   selectedCell = null;
   hintCells = [];
   renderBoard();
+
+  overlayTitleEl.textContent = titleText;
   finalScoreEl.textContent = score.toLocaleString();
-  finalBestEl.textContent = `BEST ${bestScore.toLocaleString()}`;
+  const currentBest = currentMode === 'moves' ? bestMoves : bestTimed;
+  finalBestEl.textContent = `BEST ${currentBest.toLocaleString()}`;
   overlayEl.classList.remove('hidden');
 }
 
@@ -446,7 +513,15 @@ function getSpecialComboCells(r1, c1, g1, r2, c2, g2) {
   const s1 = g1.special;
   const s2 = g2.special;
 
-  // 둘 다 폭탄(bomb): 5x5 초대형 폭발
+  // 프리즘 + 프리즘: 보드 전체 클리어
+  if (s1 === 'prism' && s2 === 'prism') {
+    for (let r = 0; r < ROWS; r++) {
+      for (let c = 0; c < COLS; c++) add(r, c);
+    }
+    return Array.from(cells.values());
+  }
+
+  // 둘 다 폭탄(bomb): 5x5 폭발
   if (s1 === 'bomb' && s2 === 'bomb') {
     for (let dr = -2; dr <= 2; dr++) {
       for (let dc = -2; dc <= 2; dc++) {
@@ -472,6 +547,34 @@ function getSpecialComboCells(r1, c1, g1, r2, c2, g2) {
   return Array.from(cells.values());
 }
 
+async function triggerPrismSwap(prismPos, targetPos, targetGem) {
+  playSFX('prism');
+  const targetType = targetGem.type;
+  const targetSpecial = targetGem.special;
+  const affectedCells = [prismPos];
+
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      if (r === prismPos.r && c === prismPos.c) continue;
+      const g = getGem(r, c);
+      if (g && g.type === targetType) {
+        // 프리즘 + 특수보석(row/col/bomb) 조합 시, 해당 색상의 모든 보석을 그 특수보석으로 변환 후 발동
+        if (targetSpecial && targetSpecial !== 'prism') {
+          setGem(r, c, { type: targetType, special: targetSpecial });
+        }
+        affectedCells.push({ r, c });
+      }
+    }
+  }
+
+  if (targetSpecial && targetSpecial !== 'prism') {
+    renderBoard();
+    await sleep(180);
+  }
+
+  await processMatches({ matchedCells: affectedCells, specialSpawns: [] }, null, 'prism');
+}
+
 async function attemptSwap(r1, c1, r2, c2) {
   isProcessing = true;
   clearHint();
@@ -484,31 +587,61 @@ async function attemptSwap(r1, c1, r2, c2) {
   const g1 = getGem(r1, c1);
   const g2 = getGem(r2, c2);
 
-  // 특수 보석 두 개를 직접 맞바꾼 경우: 색상 무관 즉시 슈퍼 콤보 발동
-  if (g1 && g2 && g1.special && g2.special) {
+  let validMoveExecuted = false;
+
+  // 1) 프리즘 코어(prism)가 포함된 스왑 처리
+  if (g1 && g2 && (g1.special === 'prism' || g2.special === 'prism')) {
+    validMoveExecuted = true;
+    if (g1.special === 'prism' && g2.special === 'prism') {
+      const allCells = getSpecialComboCells(r1, c1, g1, r2, c2, g2);
+      await processMatches({ matchedCells: allCells, specialSpawns: [] }, null, 'prism');
+    } else if (g1.special === 'prism') {
+      await triggerPrismSwap({ r: r1, c: c1 }, { r: r2, c: c2 }, g2);
+    } else {
+      await triggerPrismSwap({ r: r2, c: c2 }, { r: r1, c: c1 }, g1);
+    }
+  }
+  // 2) 일반 특수 보석(row/col/bomb) 두 개를 직접 맞바꾼 경우
+  else if (g1 && g2 && g1.special && g2.special) {
+    validMoveExecuted = true;
     const comboCells = getSpecialComboCells(r1, c1, g1, r2, c2, g2);
-    await processMatches({ matchedCells: comboCells, specialSpawns: [] }, null, true);
+    await processMatches({ matchedCells: comboCells, specialSpawns: [] }, null, 'special');
+  }
+  // 3) 일반 매치 판정
+  else {
+    const matchData = analyzeMatches();
+    if (matchData.matchedCells.length === 0) {
+      playSFX('invalid');
+      await animateVisualSwap(r1, c1, r2, c2);
+      swap(r1, c1, r2, c2);
+      renderBoard();
+      isProcessing = false;
+      resetHintTimer();
+      return;
+    }
+    validMoveExecuted = true;
+    await processMatches(matchData, { r: r2, c: c2 });
+  }
+
+  if (validMoveExecuted) {
+    if (currentMode === 'moves' && !isGameOver) {
+      movesLeft--;
+      statValEl.textContent = movesLeft;
+      if (movesLeft <= 5) {
+        statValEl.classList.add('urgent');
+      } else {
+        statValEl.classList.remove('urgent');
+      }
+      if (movesLeft <= 0) {
+        isProcessing = false;
+        endGame('OUT OF MOVES');
+        return;
+      }
+    }
     await ensurePlayableBoard(true);
     renderBoard();
-    isProcessing = false;
-    resetHintTimer();
-    return;
   }
 
-  const matchData = analyzeMatches();
-  if (matchData.matchedCells.length === 0) {
-    playSFX('invalid');
-    await animateVisualSwap(r1, c1, r2, c2);
-    swap(r1, c1, r2, c2);
-    renderBoard();
-    isProcessing = false;
-    resetHintTimer();
-    return;
-  }
-
-  await processMatches(matchData, { r: r2, c: c2 });
-  await ensurePlayableBoard(true);
-  renderBoard();
   isProcessing = false;
   resetHintTimer();
 }
@@ -528,9 +661,9 @@ function analyzeMatches() {
     let c = 0;
     while (c < COLS) {
       const gem = getGem(r, c);
-      if (!gem) { c++; continue; }
+      if (!gem || gem.special === 'prism') { c++; continue; }
       let end = c + 1;
-      while (end < COLS && getGem(r, end) && getGem(r, end).type === gem.type) {
+      while (end < COLS && getGem(r, end) && getGem(r, end).special !== 'prism' && getGem(r, end).type === gem.type) {
         end++;
       }
       if (end - c >= 3) {
@@ -549,9 +682,9 @@ function analyzeMatches() {
     let r = 0;
     while (r < ROWS) {
       const gem = getGem(r, c);
-      if (!gem) { r++; continue; }
+      if (!gem || gem.special === 'prism') { r++; continue; }
       let end = r + 1;
-      while (end < ROWS && getGem(end, c) && getGem(end, c).type === gem.type) {
+      while (end < ROWS && getGem(end, c) && getGem(end, c).special !== 'prism' && getGem(end, c).type === gem.type) {
         end++;
       }
       if (end - r >= 3) {
@@ -569,9 +702,26 @@ function analyzeMatches() {
   const specialSpawns = Array.of();
   const usedGroups = new Set();
 
+  // 5매치 이상 우선: 오팔 프리즘 코어(prism) 생성
   hGroups.forEach((hg, hi) => {
+    if (hg.group.length >= 5) {
+      usedGroups.add(`h${hi}`);
+      specialSpawns.push({ group: hg.group, type: -1, special: 'prism' });
+    }
+  });
+
+  vGroups.forEach((vg, vi) => {
+    if (vg.group.length >= 5) {
+      usedGroups.add(`v${vi}`);
+      specialSpawns.push({ group: vg.group, type: -1, special: 'prism' });
+    }
+  });
+
+  // L/T 교차 매치: 폭탄(bomb) 생성
+  hGroups.forEach((hg, hi) => {
+    if (usedGroups.has(`h${hi}`)) return;
     vGroups.forEach((vg, vi) => {
-      if (hg.type !== vg.type) return;
+      if (usedGroups.has(`v${vi}`) || hg.type !== vg.type) return;
       const intersect = hg.group.find(hp => vg.group.some(vp => vp.r === hp.r && vp.c === hp.c));
       if (intersect) {
         usedGroups.add(`h${hi}`);
@@ -585,20 +735,17 @@ function analyzeMatches() {
     });
   });
 
+  // 4매치: 가로/세로 라인 특수 보석 생성
   hGroups.forEach((hg, hi) => {
     if (usedGroups.has(`h${hi}`)) return;
-    if (hg.group.length >= 5) {
-      specialSpawns.push({ group: hg.group, type: hg.type, special: 'bomb' });
-    } else if (hg.group.length === 4) {
+    if (hg.group.length === 4) {
       specialSpawns.push({ group: hg.group, type: hg.type, special: 'col' });
     }
   });
 
   vGroups.forEach((vg, vi) => {
     if (usedGroups.has(`v${vi}`)) return;
-    if (vg.group.length >= 5) {
-      specialSpawns.push({ group: vg.group, type: vg.type, special: 'bomb' });
-    } else if (vg.group.length === 4) {
+    if (vg.group.length === 4) {
       specialSpawns.push({ group: vg.group, type: vg.type, special: 'row' });
     }
   });
@@ -640,42 +787,93 @@ function expandWithSpecials(initialCells) {
           }
         }
       }
+    } else if (gem.special === 'prism') {
+      // 연쇄 폭발에 프리즘 코어가 휘말린 경우 무작위 한 색상 전체 제거
+      const randomType = Math.floor(Math.random() * GEM_TYPES);
+      for (let rr = 0; rr < ROWS; rr++) {
+        for (let cc = 0; cc < COLS; cc++) {
+          const target = getGem(rr, cc);
+          if (target && target.type === randomType && !finalMap.has(`${rr},${cc}`)) {
+            queue.push({ r: rr, c: cc });
+          }
+        }
+      }
     }
   }
 
   return Array.from(finalMap.values());
 }
-function spawnRippleFX(cells, combo) {
+function spawnRippleFX(cells, combo, bonusText = '') {
   cells.forEach(({ r, c }) => {
     const ripple = document.createElement('div');
     ripple.className = 'ripple';
     ripple.style.left = `${(c + 0.5) * 12.5}%`;
     ripple.style.top = `${(r + 0.5) * 12.5}%`;
     fxLayerEl.appendChild(ripple);
-    setTimeout(() => ripple.remove(), 450);
+    setTimeout(() => ripple.remove(), 420);
   });
 
-  if (combo >= 2 && cells.length > 0) {
+  if ((combo >= 2 || bonusText) && cells.length > 0) {
     const center = cells.at(Math.floor(cells.length / 2));
     const badge = document.createElement('div');
     badge.className = 'combo-float';
-    badge.textContent = `${combo}x`;
+    badge.textContent = bonusText ? bonusText : `${combo}x`;
     badge.style.left = `${(center.c + 0.5) * 12.5}%`;
     badge.style.top = `${(center.r + 0.5) * 12.5}%`;
     fxLayerEl.appendChild(badge);
-    setTimeout(() => badge.remove(), 680);
+    setTimeout(() => badge.remove(), 660);
   }
 }
 
-async function processMatches(initialMatchData, swapTarget = null, isSuperCombo = false) {
+function addFeverCharge(amount) {
+  if (isFever || isGameOver) return;
+  feverGauge = Math.min(100, feverGauge + amount);
+  feverFillEl.style.width = `${feverGauge}%`;
+
+  if (feverGauge >= 100) {
+    activateFever();
+  }
+}
+
+function activateFever() {
+  isFever = true;
+  feverFillEl.classList.add('active');
+  boardEl.classList.add('fever-border');
+  scoreLabelEl.textContent = 'FEVER x2';
+  scoreLabelEl.classList.add('fever-active');
+  scoreEl.classList.add('fever-active');
+  playSFX('fever');
+
+  clearTimeout(feverTimer);
+  feverTimer = setTimeout(() => {
+    resetFeverState();
+  }, FEVER_DURATION);
+}
+
+function resetFeverState() {
+  clearTimeout(feverTimer);
+  feverTimer = null;
+  isFever = false;
+  feverGauge = 0;
+  feverFillEl.style.width = '0%';
+  feverFillEl.classList.remove('active');
+  boardEl.classList.remove('fever-border');
+  scoreLabelEl.textContent = 'SCORE';
+  scoreLabelEl.classList.remove('fever-active');
+  scoreEl.classList.remove('fever-active');
+}
+
+async function processMatches(initialMatchData, swapTarget = null, specialMode = null) {
   let matchData = initialMatchData;
   let combo = 1;
 
   while (matchData.matchedCells.length > 0) {
     const allToClear = expandWithSpecials(matchData.matchedCells);
-    const hasSpecialTriggered = isSuperCombo || allToClear.length > matchData.matchedCells.length;
+    const hasSpecialTriggered = Boolean(specialMode) || allToClear.length > matchData.matchedCells.length;
 
-    if (hasSpecialTriggered) {
+    if (specialMode === 'prism') {
+      playSFX('prism');
+    } else if (hasSpecialTriggered) {
       playSFX('special', combo);
     } else {
       playSFX('match', combo);
@@ -691,7 +889,15 @@ async function processMatches(initialMatchData, swapTarget = null, isSuperCombo 
       spawnsToCreate.push({ r: pos.r, c: pos.c, type, special });
     });
 
-    spawnRippleFX(allToClear, combo);
+    // 30수 제한 모드: 4콤보 이상 연쇄 시 +1 MOVE 보너스
+    let bonusLabel = '';
+    if (currentMode === 'moves' && combo === 4 && !isGameOver) {
+      movesLeft++;
+      statValEl.textContent = movesLeft;
+      bonusLabel = '+1 MOVE';
+    }
+
+    spawnRippleFX(allToClear, combo, bonusLabel);
 
     allToClear.forEach(({ r, c }) => {
       const cell = boardEl.children.item(toIdx(r, c));
@@ -699,7 +905,10 @@ async function processMatches(initialMatchData, swapTarget = null, isSuperCombo 
       if (gem) gem.classList.add('matched');
     });
 
-    updateScore(allToClear.length * 10 * combo);
+    const multiplier = isFever ? 2 : 1;
+    updateScore(allToClear.length * 10 * combo * multiplier);
+    addFeverCharge(allToClear.length * 2.5 + (combo - 1) * 6);
+
     await sleep(200);
 
     allToClear.forEach(({ r, c }) => {
@@ -714,7 +923,7 @@ async function processMatches(initialMatchData, swapTarget = null, isSuperCombo 
     renderBoard(true);
     await sleep(340);
 
-    isSuperCombo = false;
+    specialMode = null;
     swapTarget = null;
     matchData = analyzeMatches();
     combo++;
@@ -752,7 +961,7 @@ function findValidMove() {
 
       if (c + 1 < COLS) {
         const g2 = getGem(r, c + 1);
-        if (g2 && g1.special && g2.special) {
+        if (g2 && (g1.special === 'prism' || g2.special === 'prism' || (g1.special && g2.special))) {
           return [{ r, c }, { r, c: c + 1 }];
         }
         swap(r, c, r, c + 1);
@@ -763,7 +972,7 @@ function findValidMove() {
 
       if (r + 1 < ROWS) {
         const g2 = getGem(r + 1, c);
-        if (g2 && g1.special && g2.special) {
+        if (g2 && (g1.special === 'prism' || g2.special === 'prism' || (g1.special && g2.special))) {
           return [{ r, c }, { r: r + 1, c }];
         }
         swap(r, c, r + 1, c);
@@ -821,10 +1030,14 @@ function resetHintTimer() {
 function updateScore(points) {
   score += points;
   scoreEl.textContent = score.toLocaleString();
-  if (currentMode === 'timed' && score > bestScore) {
-    bestScore = score;
-    bestScoreEl.textContent = bestScore.toLocaleString();
-    localStorage.setItem(BEST_SCORE_KEY, bestScore);
+  if (currentMode === 'timed' && score > bestTimed) {
+    bestTimed = score;
+    bestScoreEl.textContent = bestTimed.toLocaleString();
+    localStorage.setItem(BEST_TIMED_KEY, bestTimed);
+  } else if (currentMode === 'moves' && score > bestMoves) {
+    bestMoves = score;
+    bestScoreEl.textContent = bestMoves.toLocaleString();
+    localStorage.setItem(BEST_MOVES_KEY, bestMoves);
   }
 }
 
@@ -853,6 +1066,7 @@ hintBtn.addEventListener('click', () => {
 
 modeZenBtn.addEventListener('click', () => setMode('zen'));
 modeTimedBtn.addEventListener('click', () => setMode('timed'));
+modeMovesBtn.addEventListener('click', () => setMode('moves'));
 restartBtn.addEventListener('click', initGame);
 overlayRestartBtn.addEventListener('click', initGame);
 
