@@ -3,7 +3,9 @@ const COLS = 8;
 const TOTAL_CELLS = ROWS * COLS;
 const GEM_TYPES = 6;
 const BEST_SCORE_KEY = 'still_gem_timed_best';
+const SOUND_MUTE_KEY = 'still_gem_muted';
 const TIMED_LIMIT = 60;
+const HINT_DELAY = 4200;
 
 const boardEl = document.getElementById('board');
 const fxLayerEl = document.getElementById('fx-layer');
@@ -14,6 +16,8 @@ const timerGroupEl = document.getElementById('timer-group');
 const bestGroupEl = document.getElementById('best-group');
 const modeZenBtn = document.getElementById('mode-zen');
 const modeTimedBtn = document.getElementById('mode-timed');
+const soundBtn = document.getElementById('sound-btn');
+const shuffleToastEl = document.getElementById('shuffle-toast');
 const restartBtn = document.getElementById('restart-btn');
 const overlayEl = document.getElementById('game-over-overlay');
 const finalScoreEl = document.getElementById('final-score');
@@ -24,16 +28,64 @@ let currentMode = 'zen';
 let grid = new Array(TOTAL_CELLS).fill(null);
 let dropOffsets = new Array(TOTAL_CELLS).fill(0);
 let selectedCell = null;
+let hintCells = [];
 let score = 0;
 let bestScore = Number(localStorage.getItem(BEST_SCORE_KEY)) || 0;
+let isMuted = localStorage.getItem(SOUND_MUTE_KEY) === 'true';
 let timeLeft = TIMED_LIMIT;
 let timerInterval = null;
+let hintTimeout = null;
 let isGameOver = false;
 let isProcessing = false;
 let touchStartX = 0;
 let touchStartY = 0;
 let touchStartCell = null;
+let lastTouchTime = 0;
 let svgUid = 0;
+let audioCtx = null;
+
+function playTone(freq, duration = 0.09, type = 'sine', gainVal = 0.08, delay = 0) {
+  if (isMuted) return;
+  try {
+    if (!audioCtx) {
+      const AudioContext = window.AudioContext || window.webkitAudioContext;
+      audioCtx = new AudioContext();
+    }
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+
+    const now = audioCtx.currentTime + delay;
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, now);
+
+    gain.gain.setValueAtTime(0.001, now);
+    gain.gain.exponentialRampToValueAtTime(gainVal, now + 0.015);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start(now);
+    osc.stop(now + duration + 0.02);
+  } catch (e) {}
+}
+
+function playSFX(kind, combo = 1) {
+  if (kind === 'select') {
+    playTone(520, 0.06, 'sine', 0.05);
+  } else if (kind === 'swap') {
+    playTone(360, 0.08, 'triangle', 0.06);
+  } else if (kind === 'invalid') {
+    playTone(210, 0.1, 'sawtooth', 0.04);
+  } else if (kind === 'match') {
+    const base = 440 * Math.pow(1.09, Math.min(combo - 1, 8));
+    playTone(base, 0.14, 'sine', 0.08, 0);
+    playTone(base * 1.25, 0.16, 'sine', 0.06, 0.045);
+  } else if (kind === 'special') {
+    playTone(300, 0.22, 'triangle', 0.1, 0);
+    playTone(600, 0.25, 'sine', 0.09, 0.05);
+  }
+}
 
 function toIdx(r, c) {
   return r * COLS + c;
@@ -57,38 +109,43 @@ function setDrop(r, c, val) {
 }
 
 const GEM_SPECS = Array.of(
+  // 0: 원형 (스카이 블루)
   {
     top: '#8ae8ff', mid: '#1ea7e8', deep: '#0c4a7a', glow: '#7dd3fc', rim: '#bae6fd',
     shape: `<circle cx="50" cy="49" r="39" `,
     inner: `<circle cx="50" cy="49" r="24" fill="none" stroke="#ffffff" stroke-width="1" stroke-opacity="0.28"/>`
   },
+  // 1: 하트형 (로즈 핑크)
   {
     top: '#ff9eb5', mid: '#e13b64', deep: '#6e102b', glow: '#fda4af', rim: '#fecdd3',
     shape: `<path d="M50,9 C68,32 85,48 85,65 C85,83 69,92 50,92 C31,92 15,83 15,65 C15,48 32,32 50,9 Z" `,
     inner: `<path d="M50,24 C61,40 71,50 71,63 C71,74 61,80 50,80 C39,80 29,74 29,63 C29,50 39,40 50,24 Z" fill="none" stroke="#ffffff" stroke-width="1" stroke-opacity="0.28"/>`
   },
+  // 2: 팔각형 (에메랄드 그린)
   {
     top: '#86efac', mid: '#16a34a', deep: '#064e24', glow: '#6ee7b7', rim: '#bbf7d0',
     shape: `<polygon points="27,10 73,10 88,25 88,75 73,90 27,90 12,75 12,25" `,
     inner: `<polygon points="33,23 67,23 76,32 76,68 67,77 33,77 24,68 24,32" fill="none" stroke="#ffffff" stroke-width="1" stroke-opacity="0.28"/>`
   },
+  // 3: 네모형 (선명한 탠저린 오렌지)
   {
-    top: '#fde08d', mid: '#e08e1b', deep: '#6b3804', glow: '#fcd34d', rim: '#fef08a',
+    top: '#fdba74', mid: '#f97316', deep: '#7c2d12', glow: '#fb923c', rim: '#fed7aa',
     shape: `<rect x="13" y="13" width="74" height="74" rx="22" `,
     inner: `<rect x="25" y="25" width="50" height="50" rx="14" fill="none" stroke="#ffffff" stroke-width="1" stroke-opacity="0.28"/>`
   },
+  // 4: 삼각형 (바이올렛 퍼플)
   {
     top: '#e5b8ff', mid: '#9333ea', deep: '#3b0764', glow: '#d8b4fe', rim: '#f3e8ff',
     shape: `<path d="M50,10 Q66,10 89,75 Q93,87 80,87 L20,87 Q7,87 11,75 Q34,10 50,10 Z" `,
     inner: `<polygon points="50,28 73,75 27,75" fill="none" stroke="#ffffff" stroke-width="1" stroke-opacity="0.28"/>`
   },
+  // 5: 물방울형 (밝은 레몬 골드)
   {
-    top: '#fef08a', mid: '#ca8a04', deep: '#573602', glow: '#fde047', rim: '#fef9c3',
+    top: '#fef9c3', mid: '#eab308', deep: '#713f12', glow: '#fde047', rim: '#fef08a',
     shape: `<path d="M50,7 C76,25 86,40 86,50 C86,60 76,75 50,93 C24,75 14,60 14,50 C14,40 24,25 50,7 Z" `,
     inner: `<path d="M50,22 C66,34 72,43 72,50 C72,57 66,66 50,78 C34,66 28,57 28,50 C28,43 34,34 50,22 Z" fill="none" stroke="#ffffff" stroke-width="1" stroke-opacity="0.28"/>`
   }
 );
-
 function getGemSVG(gem) {
   const s = GEM_SPECS.at(gem.type);
   const uid = ++svgUid;
@@ -130,6 +187,12 @@ function getGemSVG(gem) {
     ${specialOverlay}
   </svg>`;
 }
+
+function updateSoundBtn() {
+  soundBtn.textContent = isMuted ? '🔇' : '🔊';
+  soundBtn.classList.toggle('muted', isMuted);
+}
+
 function setMode(mode) {
   currentMode = mode;
   modeZenBtn.classList.toggle('active', mode === 'zen');
@@ -145,12 +208,14 @@ function setMode(mode) {
   initGame();
 }
 
-function initGame() {
+async function initGame() {
   clearInterval(timerInterval);
+  clearHintTimer();
   score = 0;
   timeLeft = TIMED_LIMIT;
   isGameOver = false;
   selectedCell = null;
+  hintCells = [];
   isProcessing = false;
 
   scoreEl.textContent = '0';
@@ -158,12 +223,14 @@ function initGame() {
   timerEl.textContent = timeLeft;
   timerEl.classList.remove('urgent');
   overlayEl.classList.add('hidden');
+  shuffleToastEl.classList.add('hidden');
   fxLayerEl.innerHTML = '';
 
   createInitialGrid();
-  ensurePlayableBoard();
+  await ensurePlayableBoard(false);
   dropOffsets.fill(0);
   renderBoard();
+  resetHintTimer();
 
   if (currentMode === 'timed') {
     startTimer();
@@ -186,7 +253,9 @@ function startTimer() {
 
 function endTimedGame() {
   isGameOver = true;
+  clearHintTimer();
   selectedCell = null;
+  hintCells = [];
   renderBoard();
   finalScoreEl.textContent = score.toLocaleString();
   finalBestEl.textContent = `BEST ${bestScore.toLocaleString()}`;
@@ -223,6 +292,9 @@ function renderBoard(animateDrops = false) {
       if (selectedCell && selectedCell.r === r && selectedCell.c === c) {
         cell.classList.add('selected');
       }
+      if (hintCells.some(h => h.r === r && h.c === c)) {
+        cell.classList.add('hint');
+      }
 
       const gem = getGem(r, c);
       if (gem !== null) {
@@ -230,7 +302,7 @@ function renderBoard(animateDrops = false) {
         const dropCount = getDrop(r, c);
         if (animateDrops && dropCount > 0) {
           const gemEl = cell.querySelector('.gem');
-          const offsetPercent = dropCount * 115;
+          const offsetPercent = dropCount * 135;
           gemEl.style.transition = 'none';
           gemEl.style.transform = `translateY(-${offsetPercent}%)`;
           fallingGems.push(gemEl);
@@ -239,7 +311,10 @@ function renderBoard(animateDrops = false) {
 
       cell.addEventListener('touchstart', (e) => handleTouchStart(e, r, c), { passive: false });
       cell.addEventListener('touchend', (e) => handleTouchEnd(e), { passive: false });
-      cell.addEventListener('mousedown', () => handleCellSelect(r, c));
+      cell.addEventListener('mousedown', () => {
+        if (Date.now() - lastTouchTime < 400) return;
+        handleCellSelect(r, c);
+      });
 
       boardEl.appendChild(cell);
     }
@@ -256,6 +331,7 @@ function renderBoard(animateDrops = false) {
 
 function handleTouchStart(e, r, c) {
   e.preventDefault();
+  lastTouchTime = Date.now();
   if (isProcessing || isGameOver) return;
   const touch = e.changedTouches.item(0);
   if (!touch) return;
@@ -266,6 +342,7 @@ function handleTouchStart(e, r, c) {
 
 function handleTouchEnd(e) {
   e.preventDefault();
+  lastTouchTime = Date.now();
   if (isProcessing || isGameOver || !touchStartCell) return;
   const touch = e.changedTouches.item(0);
   if (!touch) return;
@@ -299,16 +376,20 @@ function handleTouchEnd(e) {
 
 function handleCellSelect(r, c) {
   if (isProcessing || isGameOver) return;
+  clearHint();
 
   if (!selectedCell) {
     selectedCell = { r, c };
+    playSFX('select');
     renderBoard();
+    resetHintTimer();
     return;
   }
 
   if (selectedCell.r === r && selectedCell.c === c) {
     selectedCell = null;
     renderBoard();
+    resetHintTimer();
     return;
   }
 
@@ -317,7 +398,9 @@ function handleCellSelect(r, c) {
 
   if (!isAdjacent) {
     selectedCell = { r, c };
+    playSFX('select');
     renderBoard();
+    resetHintTimer();
     return;
   }
 
@@ -325,15 +408,14 @@ function handleCellSelect(r, c) {
   selectedCell = null;
   attemptSwap(r1, c1, r, c);
 }
-
 async function animateVisualSwap(r1, c1, r2, c2) {
   const cell1 = boardEl.children.item(toIdx(r1, c1));
   const cell2 = boardEl.children.item(toIdx(r2, c2));
   const gem1 = cell1 ? cell1.querySelector('.gem') : null;
   const gem2 = cell2 ? cell2.querySelector('.gem') : null;
 
-  const dx = (c2 - c1) * 115;
-  const dy = (r2 - r1) * 115;
+  const dx = (c2 - c1) * 135;
+  const dy = (r2 - r1) * 135;
 
   if (gem1) {
     gem1.style.transition = 'transform 0.16s cubic-bezier(0.22, 1, 0.36, 1)';
@@ -346,25 +428,82 @@ async function animateVisualSwap(r1, c1, r2, c2) {
   await sleep(165);
 }
 
+function getSpecialComboCells(r1, c1, g1, r2, c2, g2) {
+  const cells = new Map();
+  const add = (r, c) => {
+    if (r >= 0 && r < ROWS && c >= 0 && c < COLS) {
+      cells.set(`${r},${c}`, { r, c });
+    }
+  };
+
+  const s1 = g1.special;
+  const s2 = g2.special;
+
+  // 둘 다 폭탄(bomb): 5x5 초대형 폭발
+  if (s1 === 'bomb' && s2 === 'bomb') {
+    for (let dr = -2; dr <= 2; dr++) {
+      for (let dc = -2; dc <= 2; dc++) {
+        add(r2 + dr, c2 + dc);
+      }
+    }
+    return Array.from(cells.values());
+  }
+
+  // 폭탄 + 가로/세로 라인: 3줄 십자(+) 폭발
+  if ((s1 === 'bomb' && (s2 === 'row' || s2 === 'col')) ||
+      (s2 === 'bomb' && (s1 === 'row' || s1 === 'col'))) {
+    for (let offset = -1; offset <= 1; offset++) {
+      for (let c = 0; c < COLS; c++) add(r2 + offset, c);
+      for (let r = 0; r < ROWS; r++) add(r, c2 + offset);
+    }
+    return Array.from(cells.values());
+  }
+
+  // 가로/세로 라인 + 가로/세로 라인: 1줄 십자(+) 폭발
+  for (let c = 0; c < COLS; c++) add(r2, c);
+  for (let r = 0; r < ROWS; r++) add(r, c2);
+  return Array.from(cells.values());
+}
+
 async function attemptSwap(r1, c1, r2, c2) {
   isProcessing = true;
+  clearHint();
+  playSFX('swap');
+
   await animateVisualSwap(r1, c1, r2, c2);
   swap(r1, c1, r2, c2);
   renderBoard();
 
+  const g1 = getGem(r1, c1);
+  const g2 = getGem(r2, c2);
+
+  // 특수 보석 두 개를 직접 맞바꾼 경우: 색상 무관 즉시 슈퍼 콤보 발동
+  if (g1 && g2 && g1.special && g2.special) {
+    const comboCells = getSpecialComboCells(r1, c1, g1, r2, c2, g2);
+    await processMatches({ matchedCells: comboCells, specialSpawns: [] }, null, true);
+    await ensurePlayableBoard(true);
+    renderBoard();
+    isProcessing = false;
+    resetHintTimer();
+    return;
+  }
+
   const matchData = analyzeMatches();
   if (matchData.matchedCells.length === 0) {
+    playSFX('invalid');
     await animateVisualSwap(r1, c1, r2, c2);
     swap(r1, c1, r2, c2);
     renderBoard();
     isProcessing = false;
+    resetHintTimer();
     return;
   }
 
   await processMatches(matchData, { r: r2, c: c2 });
-  ensurePlayableBoard();
+  await ensurePlayableBoard(true);
   renderBoard();
   isProcessing = false;
+  resetHintTimer();
 }
 
 function swap(r1, c1, r2, c2) {
@@ -372,6 +511,7 @@ function swap(r1, c1, r2, c2) {
   setGem(r1, c1, getGem(r2, c2));
   setGem(r2, c2, temp);
 }
+
 function analyzeMatches() {
   const matchedMap = new Map();
   const hGroups = Array.of();
@@ -498,7 +638,6 @@ function expandWithSpecials(initialCells) {
 
   return Array.from(finalMap.values());
 }
-
 function spawnRippleFX(cells, combo) {
   cells.forEach(({ r, c }) => {
     const ripple = document.createElement('div');
@@ -521,12 +660,19 @@ function spawnRippleFX(cells, combo) {
   }
 }
 
-async function processMatches(initialMatchData, swapTarget = null) {
+async function processMatches(initialMatchData, swapTarget = null, isSuperCombo = false) {
   let matchData = initialMatchData;
   let combo = 1;
 
   while (matchData.matchedCells.length > 0) {
     const allToClear = expandWithSpecials(matchData.matchedCells);
+    const hasSpecialTriggered = isSuperCombo || allToClear.length > matchData.matchedCells.length;
+
+    if (hasSpecialTriggered) {
+      playSFX('special', combo);
+    } else {
+      playSFX('match', combo);
+    }
 
     const spawnsToCreate = Array.of();
     matchData.specialSpawns.forEach(({ group, type, special }) => {
@@ -561,6 +707,7 @@ async function processMatches(initialMatchData, swapTarget = null) {
     renderBoard(true);
     await sleep(340);
 
+    isSuperCombo = false;
     swapTarget = null;
     matchData = analyzeMatches();
     combo++;
@@ -590,30 +737,78 @@ function applyGravityAndRefill() {
   }
 }
 
-function hasValidMove() {
+function findValidMove() {
   for (let r = 0; r < ROWS; r++) {
     for (let c = 0; c < COLS; c++) {
+      const g1 = getGem(r, c);
+      if (!g1) continue;
+
       if (c + 1 < COLS) {
+        const g2 = getGem(r, c + 1);
+        if (g2 && g1.special && g2.special) {
+          return [{ r, c }, { r, c: c + 1 }];
+        }
         swap(r, c, r, c + 1);
         const match = analyzeMatches().matchedCells.length > 0;
         swap(r, c, r, c + 1);
-        if (match) return true;
+        if (match) return [{ r, c }, { r, c: c + 1 }];
       }
+
       if (r + 1 < ROWS) {
+        const g2 = getGem(r + 1, c);
+        if (g2 && g1.special && g2.special) {
+          return [{ r, c }, { r: r + 1, c }];
+        }
         swap(r, c, r + 1, c);
         const match = analyzeMatches().matchedCells.length > 0;
         swap(r, c, r + 1, c);
-        if (match) return true;
+        if (match) return [{ r, c }, { r: r + 1, c }];
       }
     }
   }
-  return false;
+  return null;
 }
 
-function ensurePlayableBoard() {
-  while (!hasValidMove()) {
+async function ensurePlayableBoard(showToast = true) {
+  if (findValidMove() !== null) return;
+
+  if (showToast) {
+    shuffleToastEl.classList.remove('hidden');
+    await sleep(950);
+    shuffleToastEl.classList.add('hidden');
+  }
+
+  while (findValidMove() === null) {
     createInitialGrid();
   }
+}
+
+function clearHintTimer() {
+  if (hintTimeout) {
+    clearTimeout(hintTimeout);
+    hintTimeout = null;
+  }
+}
+
+function clearHint() {
+  clearHintTimer();
+  if (hintCells.length > 0) {
+    hintCells = [];
+    renderBoard();
+  }
+}
+
+function resetHintTimer() {
+  clearHintTimer();
+  if (isGameOver || isProcessing) return;
+  hintTimeout = setTimeout(() => {
+    if (isGameOver || isProcessing) return;
+    const move = findValidMove();
+    if (move) {
+      hintCells = move;
+      renderBoard();
+    }
+  }, HINT_DELAY);
 }
 
 function updateScore(points) {
@@ -630,9 +825,17 @@ function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+soundBtn.addEventListener('click', () => {
+  isMuted = !isMuted;
+  localStorage.setItem(SOUND_MUTE_KEY, isMuted);
+  updateSoundBtn();
+  if (!isMuted) playSFX('select');
+});
+
 modeZenBtn.addEventListener('click', () => setMode('zen'));
 modeTimedBtn.addEventListener('click', () => setMode('timed'));
 restartBtn.addEventListener('click', initGame);
 overlayRestartBtn.addEventListener('click', initGame);
 
+updateSoundBtn();
 setMode('zen');
